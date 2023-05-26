@@ -1,3 +1,6 @@
+from collections import deque
+
+
 class Cell(object):
     index: int
     cell_type: int
@@ -5,6 +8,7 @@ class Cell(object):
     neighbors: list[int]
     my_ants: int
     opp_ants: int
+    dist_from_base: int
 
     def __init__(
         self,
@@ -14,6 +18,7 @@ class Cell(object):
         neighbors: list[int],
         my_ants: int,
         opp_ants: int,
+        dist_from_base: int,
     ):
         self.index = index
         self.cell_type = cell_type
@@ -21,6 +26,7 @@ class Cell(object):
         self.neighbors = neighbors
         self.my_ants = my_ants
         self.opp_ants = opp_ants
+        self.dist_from_base = dist_from_base
 
 
 def line(sourceIdx, targetIdx, strength) -> str:
@@ -35,6 +41,14 @@ cells: list[Cell] = []
 egg_cell_idx = -1
 crystal_cell_idx = -1
 number_of_cells = int(input())  # amount of hexagonal cells in this map
+
+dist = []
+for _ in range(number_of_cells):
+    dist.append([-1 for i in range(number_of_cells)])
+
+for i in range(number_of_cells):
+    dist[i][i] = 0
+
 for i in range(number_of_cells):
     inputs = [int(j) for j in input().split()]
     cell_type = inputs[0]  # 0 for empty, 1 for eggs, 2 for crystal
@@ -63,6 +77,7 @@ for i in range(number_of_cells):
         ),
         my_ants=0,
         opp_ants=0,
+        dist_from_base=-1,
     )
     cells.append(cell)
 number_of_bases = int(input())
@@ -75,16 +90,32 @@ for i in input().split():
     opp_base_index = int(i)
     opp_bases.append(opp_base_index)
 
+# preset dist_from_base
+q = deque()
+q.append(my_bases[0])
+cells[my_bases[0]].dist_from_base = 0
+
+while len(q) > 0:
+    target_cell_idx = q.popleft()
+
+    current_dist = cells[target_cell_idx].dist_from_base
+    for i in range(len(cells[target_cell_idx].neighbors)):
+        next_idx = cells[target_cell_idx].neighbors[i]
+        if cells[next_idx].dist_from_base == -1:
+            cells[next_idx].dist_from_base = current_dist + 1
+            q.append(next_idx)
+
+
 # game loop
-target_cell_idx = 0
-target_egg_idx = 0
+nearest_cell_idx = -1
+nearest_egg_idx = -1
 while True:
-    cur_cell_idx = -1
-    cur_egg_idx = -1
+    egg_list = []
+    crystal_list = []
+
     for i in range(number_of_cells):
         inputs = [int(j) for j in input().split()]
-        # the current amount of eggs/crystals on this cell
-        resources = inputs[0]
+        resources = inputs[0]  # the current amount of eggs/crystals on this cell
         my_ants = inputs[1]  # the amount of your ants on this cell
         opp_ants = inputs[2]  # the amount of opponent ants on this cell
 
@@ -92,25 +123,34 @@ while True:
         cells[i].my_ants = my_ants
         cells[i].opp_ants = opp_ants
 
-        if cells[i].cell_type is 2 and (
-            cur_cell_idx is -1 or cells[i].resources > cells[cur_cell_idx].resources
-        ):
-            cur_cell_idx = i
+        if cells[i].cell_type == 1 and resources > 0:
+            egg_list.append(i)
 
-        if cells[i].cell_type is 1 and (
-            cur_egg_idx is -1 or cells[i].resources > cells[cur_egg_idx].resources
-        ):
-            cur_egg_idx = i
+        if cells[i].cell_type == 2 and resources > 0:
+            crystal_list.append(i)
 
-    if cells[target_cell_idx].resources is 0:
-        target_cell_idx = cur_cell_idx
-    if cells[target_egg_idx].resources is 0:
-        target_egg_idx = cur_egg_idx
+    egg_list.sort(key=lambda idx: cells[idx].dist_from_base)
+    crystal_list.sort(key=lambda idx: cells[idx].dist_from_base)
 
     # WAIT | LINE <sourceIdx> <targetIdx> <strength> | BEACON <cellIdx> <strength> | MESSAGE <text>
     actions = []
-    actions.append(line(my_bases[0], target_cell_idx, 1))
-    actions.append(line(my_bases[0], target_egg_idx, 1))
+    for i in range(0, min(len(crystal_list), 1)):
+        if (
+            cells[egg_list[0]].dist_from_base
+            < cells[crystal_list[i]].dist_from_base * 2
+        ):
+            actions.append(line(my_bases[0], egg_list[i], 25))
+
+    for i in range(1, min(len(crystal_list), 3)):
+        if (
+            cells[egg_list[i]].dist_from_base
+            < cells[crystal_list[0]].dist_from_base * 2
+        ):
+            actions.append(line(my_bases[0], egg_list[i], 1))
+
+    actions.append(line(my_bases[0], crystal_list[0], 20))
+    for i in range(1, min(len(crystal_list), 5)):
+        actions.append(line(my_bases[0], crystal_list[i], max(0, 10 - i * 2)))
 
     # To debug: print("Debug messages...", file=sys.stderr, flush=True)
     if len(actions) == 0:
