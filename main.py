@@ -99,7 +99,8 @@ def msg(txt) -> str:
     return "MESSAGE " + txt
 
 
-def debug(txt):
+def debug(txt, indent=0):
+    print("  " * indent, end="", file=sys.stderr, flush=True)
     print(txt, file=sys.stderr, flush=True)
 
 
@@ -115,11 +116,11 @@ for _ in range(number_of_cells):
 for i in range(number_of_cells):
     dist[i][i] = 0
 
-initial_resources_total = 0
+initial_resources_total: int = 0
 init_crystal_list: list[int] = []
 init_egg_list: list[int] = []
-init_crystal_total = 0
-init_egg_total = 0
+init_crystal_total: int = 0
+init_egg_total: int = 0
 
 for i in range(number_of_cells):
     inputs = [int(j) for j in input().split()]
@@ -158,7 +159,7 @@ for i in range(number_of_cells):
     for next in c.neighbors:
         dist[i][next] = 1
 
-number_of_bases = int(input())
+number_of_bases: int = int(input())
 my_bases: list[int] = []
 for i in input().split():
     my_base_index = int(i)
@@ -189,14 +190,24 @@ for i in sorted(init_crystal_list, key=lambda idx: (dist[my_bases[0]][idx])):
     if acc > init_crystal_total * 90 // 100:
         break
 
+visit_egg_list: list[int] = list(
+    filter(
+        lambda idx: dist[my_bases[0]][idx] < dist[opp_bases[0]][idx] * 2,
+        init_egg_list,
+    )
+)
+
 # Game Phasing Indicator
-# 0: Early Game
-# 1: Mid Game
-# 2: Late Game
+game_phase_dict = {
+    0: "Early Game",
+    1: "Mid Game",
+    2: "Late Game",
+}
 game_phase = 0
 
 # game loop
 while True:
+    # Input Game State
     egg_list: list[int] = []
     crystal_list: list[int] = []
     resources_total = 0
@@ -213,102 +224,96 @@ while True:
         cells[i].my_ants = my_ants
         cells[i].opp_ants = opp_ants
 
-        resources_total += resources
         my_ants_total += my_ants
 
-        if cells[i].cell_type == 1 and resources > 0:
-            egg_list.append(i)
-            egg_resource_total += resources
+        if resources > 0:
+            if cells[i].cell_type == 1:
+                egg_list.append(i)
+                egg_resource_total += resources
 
-        if cells[i].cell_type == 2 and resources > 0:
-            crystal_list.append(i)
-            crystal_resource_total += resources
+            if cells[i].cell_type == 2:
+                crystal_list.append(i)
+                crystal_resource_total += resources
 
-    progress_indicator = (
-        initial_resources_total - resources_total
-    ) / initial_resources_total
+    # A. Pre processing
+    resources_total = egg_resource_total + crystal_resource_total
+    progress_indicator = 1 - (resources_total / initial_resources_total)
     debug(f"progress_indicator: {progress_indicator}")
 
+    # B. Game strategy
     actions = []
-
-    nearest_resource_list = sorted(
-        crystal_list + egg_list,
-        key=lambda idx: (dist[my_bases[0]][idx], cells[idx].cell_type),
-    )
-    nearest_resource_idx = nearest_resource_list[0]
-
-    # define game phase
-    if (
-        not (
+    #  if nearest is egg, go to egg
+    if game_phase == 0:
+        debug(f"game_phase: {game_phase} ({game_phase_dict[game_phase]})")
+        nearest_resource_list = sorted(
+            crystal_list + egg_list,
+            key=lambda idx: (dist[my_bases[0]][idx], cells[idx].cell_type),
+        )
+        nearest_resource_idx = nearest_resource_list[0]
+        if not (
             cells[nearest_resource_idx].cell_type == 1
             and cells[nearest_resource_idx].resources > 0
             and progress_indicator < 0.3
-        )
-    ) and game_phase == 0:
-        game_phase = 1
-
-    # if nearest is egg, go to egg
-    if game_phase == 0:
-        nearest_resources_amount = 0
-        nearest_resource_path_way_long = 0
-        for i in range(len(nearest_resource_list)):
-            if (
-                cells[nearest_resource_list[i]].cell_type == 1
-                and dist[my_bases[0]][nearest_resource_list[i]]
-                == dist[my_bases[0]][nearest_resource_list[0]]
-            ):
-                actions.append(line(my_bases[0], nearest_resource_list[i], 2))
-                nearest_resources_amount += cells[nearest_resource_list[i]].resources
-                nearest_resource_path_way_long += dist[my_bases[0]][
-                    nearest_resource_list[i]
-                ]
-                for neighbor in cells[nearest_resource_list[i]].neighbors:
-                    if cells[neighbor].cell_type == 1:
-                        actions.append(beacon(neighbor, 1))
-                        nearest_resources_amount += cells[neighbor].resources
-                        nearest_resource_path_way_long += 1
-            else:
-                break
-        # my ants are enough to get all eggs
-        if nearest_resources_amount * nearest_resource_path_way_long > my_ants_total:
-            print(";".join(actions))
-            continue
-        else:
+        ):
             game_phase = 1
+        else:
+            nearest_resources_amount = 0
+            nearest_resource_path_way_long = 0
+            for i in range(len(nearest_resource_list)):
+                if (
+                    cells[nearest_resource_list[i]].cell_type == 1
+                    and dist[my_bases[0]][nearest_resource_list[i]]
+                    == dist[my_bases[0]][nearest_resource_list[0]]
+                ):
+                    actions.append(line(my_bases[0], nearest_resource_list[i], 2))
+                    nearest_resources_amount += cells[
+                        nearest_resource_list[i]
+                    ].resources
+                    nearest_resource_path_way_long += dist[my_bases[0]][
+                        nearest_resource_list[i]
+                    ]
+                    for neighbor in cells[nearest_resource_list[i]].neighbors:
+                        if cells[neighbor].cell_type == 1:
+                            actions.append(beacon(neighbor, 1))
+                            nearest_resources_amount += cells[neighbor].resources
+                            nearest_resource_path_way_long += 1
+                else:
+                    break
+            # my ants are enough to get all eggs
+            if (
+                nearest_resources_amount * nearest_resource_path_way_long
+                > my_ants_total
+            ):
+                print(";".join(actions))
+                continue
+            else:
+                game_phase = 1
 
     # main strategy
     if game_phase == 1:
+        debug(f"game_phase: {game_phase} ({game_phase_dict[game_phase]})")
         uf = UnionFind(number_of_cells)
         visit_resource_list: list[int] = list(
             filter(
                 lambda idx: cells[idx].resources > 0,
-                visit_crystal_list
-                + list(
-                    filter(
-                        lambda idx: dist[my_bases[0]][idx]
-                        < dist[opp_bases[0]][idx] * 2,
-                        egg_list,
-                    )
-                ),
+                visit_crystal_list + visit_egg_list,
             )
         )
 
         visit_resource_list.sort(key=lambda idx: dist[my_bases[0]][idx])
 
+        # TODO: baseの複数対応
         connected_to_base = [my_bases[0]]
         que = deque()
         que.append(my_bases[0])
         for resource in visit_resource_list:
             que.append(resource)
 
-        resource_with_multi_path_list = []
         history_dict = {}
-        for i in range(number_of_cells):
-            history_dict[i] = -1
         while len(que) > 0:
-            debug(f"----new loop---")
-            debug(f"connected_to_base: {connected_to_base}")
-            debug(f"que: {que}")
+            debug(f"----new loop---", 1)
+            debug(f"connected_to_base: {connected_to_base}", 1)
+            debug(f"que: {que}", 1)
             current_pos_idx: int = que.popleft()
 
             if current_pos_idx in connected_to_base:
@@ -325,29 +330,41 @@ while True:
                 )
             )
             next_neighbors_list.sort(key=lambda x: cells[x].my_ants, reverse=True)
+            next_cell = next_neighbors_list[0]
 
-            debug(f"nearest_path: {nearest_path}")
-            debug(f"next_neighbors_list: {next_neighbors_list}")
-            if history_dict[current_pos_idx] == len(que):
-                uf.union(current_pos_idx, next_neighbors_list[0])
+            debug(f"nearest_path: {nearest_path}", 1)
+            debug(f"next_neighbors_list: {next_neighbors_list}", 1)
+
+            # infinite-loop check
+            # force to go the first next cell
+            if history_dict.get(current_pos_idx, -1) == len(que):
+                uf.union(current_pos_idx, next_cell)
                 connected_to_base.append(current_pos_idx)
-                que.appendleft(next_neighbors_list[0])
+                que.appendleft(next_cell)
                 continue
             history_dict[current_pos_idx] = len(que)
 
+            # path defined
             if len(next_neighbors_list) == 1:
-                uf.union(current_pos_idx, next_neighbors_list[0])
+                uf.union(current_pos_idx, next_cell)
                 connected_to_base.append(current_pos_idx)
-                que.appendleft(next_neighbors_list[0])
+                que.appendleft(next_cell)
                 continue
-            else:
-                if next_neighbors_list[0] in connected_to_base:
-                    uf.union(current_pos_idx, next_neighbors_list[0])
-                else:
-                    que.append(current_pos_idx)
 
+            # path not defined
+            # one of the next_cells is already connected to base
+            for one_of_next_cell in next_neighbors_list:
+                if one_of_next_cell in connected_to_base:
+                    uf.union(current_pos_idx, one_of_next_cell)
+                    continue
+
+            # don't handle, push back to que to retry
+            que.append(current_pos_idx)
+
+        # start to union, connect isolated islands to base
         connected_to_base.sort(key=lambda idx: dist[my_bases[0]][idx])
         verified_connection_cells = [my_bases[0]]
+        # TODO: baseの複数対応
         for current_pos_idx in connected_to_base:
             if not uf.same(my_bases[0], current_pos_idx):
                 nearest_path = sorted(
