@@ -3,6 +3,7 @@ import sys
 import heapq
 
 from collections import defaultdict
+import time
 
 
 class UnionFind:
@@ -64,7 +65,6 @@ class Cell(object):
     my_ants: int
     opp_ants: int
     dist_from_base: int
-    is_middle_point_between_us: bool
 
     def __init__(
         self,
@@ -75,7 +75,6 @@ class Cell(object):
         my_ants: int,
         opp_ants: int,
         dist_from_base: int,
-        is_middle_point_between_us: bool = False,
     ):
         self.index = index
         self.cell_type = cell_type
@@ -84,7 +83,6 @@ class Cell(object):
         self.my_ants = my_ants
         self.opp_ants = opp_ants
         self.dist_from_base = dist_from_base
-        self.is_middle_point_between_us = is_middle_point_between_us
 
 
 def beacon(cellIdx, strength):
@@ -131,7 +129,6 @@ for i in range(number_of_cells):
         init_egg_list.append(i)
     # the initial amount of eggs/crystals on this cell
     initial_resources = inputs[1]
-    initial_resources_total += initial_resources
     init_crystal_total += initial_resources if cell_type == 2 else 0
     init_egg_total += initial_resources if cell_type == 1 else 0
     # the index of the neighbouring cell for each direction
@@ -159,6 +156,7 @@ for i in range(number_of_cells):
     for next in c.neighbors:
         dist[i][next] = 1
 
+initial_resources_total = init_crystal_total + init_egg_total
 number_of_bases: int = int(input())
 my_bases: list[int] = []
 for i in input().split():
@@ -169,30 +167,29 @@ for i in input().split():
     opp_base_index = int(i)
     opp_bases.append(opp_base_index)
 
-
+# TODO: 初期処理重くてタイムアウトするので、初期処理を減らす
 for k in range(number_of_cells):
     for i in range(number_of_cells):
         for j in range(number_of_cells):
             dist[i][j] = min(dist[i][j], dist[i][k] + dist[k][j])
             dist[j][i] = min(dist[i][j], dist[i][k] + dist[k][j])
 
-for c in cells:
-    c.is_middle_point_between_us = (
-        dist[c.index][my_bases[0]] == dist[c.index][opp_bases[0]]
-    )
-
-
 acc = 0
 visit_crystal_list: list[int] = []
+middle_crystal_list: list[int] = []
 for i in sorted(init_crystal_list, key=lambda idx: (dist[my_bases[0]][idx])):
+    index = cells[i].index
+    if abs(dist[my_bases[0]][index] - dist[opp_bases[0]][index]) <= 1:
+        middle_crystal_list.append(i)
     acc += cells[i].resources
-    visit_crystal_list.append(i)
-    if acc > init_crystal_total * 90 // 100:
-        break
+    if init_crystal_total * 0 <= acc * 100 <= init_crystal_total * 90:
+        visit_crystal_list.append(i)
 
+
+# TODO: base複数対応
 visit_egg_list: list[int] = list(
     filter(
-        lambda idx: dist[my_bases[0]][idx] < dist[opp_bases[0]][idx] * 2,
+        lambda idx: dist[my_bases[0]][idx] < dist[opp_bases[0]][idx] * 1.5,
         init_egg_list,
     )
 )
@@ -202,8 +199,12 @@ game_phase_dict = {
     0: "Early Game",
     1: "Mid Game",
     2: "Late Game",
+    10: "only one crystal",
+    11: "few resources",
 }
 game_phase = 0
+if len(my_bases) > 1:
+    game_phase = 1
 
 # game loop
 while True:
@@ -240,10 +241,20 @@ while True:
     progress_indicator = 1 - (resources_total / initial_resources_total)
     debug(f"progress_indicator: {progress_indicator}")
 
+    # game phase 10: only one crystal
+    if len(crystal_list) == 1 and my_ants_total > cells[crystal_list[0]].resources:
+        game_phase = 10
+
+    # game phase 11: few resources
+    if my_ants_total * 2 > crystal_resource_total:
+        game_phase = 11
+
     # B. Game strategy
     actions = []
     #  if nearest is egg, go to egg
     if game_phase == 0:
+        # TODO: baseの複数対応
+
         debug(f"game_phase: {game_phase} ({game_phase_dict[game_phase]})")
         nearest_resource_list = sorted(
             crystal_list + egg_list,
@@ -265,7 +276,7 @@ while True:
                     and dist[my_bases[0]][nearest_resource_list[i]]
                     == dist[my_bases[0]][nearest_resource_list[0]]
                 ):
-                    actions.append(line(my_bases[0], nearest_resource_list[i], 2))
+                    actions.append(line(my_bases[0], nearest_resource_list[i], 1))
                     nearest_resources_amount += cells[
                         nearest_resource_list[i]
                     ].resources
@@ -289,14 +300,27 @@ while True:
             else:
                 game_phase = 1
 
+    # game phase 11: few resources
+    if game_phase == 11:
+        debug(f"game_phase: {game_phase} ({game_phase_dict[game_phase]})")
+        visit_egg_list = []
+        game_phase = 1
+
     # main strategy
     if game_phase == 1:
         debug(f"game_phase: {game_phase} ({game_phase_dict[game_phase]})")
         uf = UnionFind(number_of_cells)
+        target_crystal_list = visit_crystal_list
+        if (
+            len(list(filter(lambda idx: cells[idx].resources > 0, middle_crystal_list)))
+            > 0
+        ):
+            target_crystal_list = middle_crystal_list
+
         visit_resource_list: list[int] = list(
             filter(
                 lambda idx: cells[idx].resources > 0,
-                visit_crystal_list + visit_egg_list,
+                target_crystal_list + visit_egg_list,
             )
         )
 
@@ -312,8 +336,8 @@ while True:
         history_dict = {}
         while len(que) > 0:
             debug(f"----new loop---", 1)
-            debug(f"connected_to_base: {connected_to_base}", 1)
-            debug(f"que: {que}", 1)
+            debug(f"connected_to_base: {connected_to_base}", 2)
+            debug(f"que: {que}", 2)
             current_pos_idx: int = que.popleft()
 
             if current_pos_idx in connected_to_base:
@@ -332,8 +356,8 @@ while True:
             next_neighbors_list.sort(key=lambda x: cells[x].my_ants, reverse=True)
             next_cell = next_neighbors_list[0]
 
-            debug(f"nearest_path: {nearest_path}", 1)
-            debug(f"next_neighbors_list: {next_neighbors_list}", 1)
+            debug(f"nearest_path: {nearest_path}", 2)
+            debug(f"next_neighbors_list: {next_neighbors_list}", 2)
 
             # infinite-loop check
             # force to go the first next cell
@@ -360,6 +384,7 @@ while True:
 
             # don't handle, push back to que to retry
             que.append(current_pos_idx)
+        debug(f"===loop end===", 1)
 
         # start to union, connect isolated islands to base
         connected_to_base.sort(key=lambda idx: dist[my_bases[0]][idx])
@@ -376,6 +401,15 @@ while True:
 
         for cell in connected_to_base:
             actions.append(beacon(cell, 1))
+
+    if game_phase == 10:
+        debug(f"game_phase: {game_phase} ({game_phase_dict[game_phase]})")
+        last_crystal_idx = crystal_list[0]
+        nearest_base = sorted(
+            my_bases,
+            key=lambda idx: (dist[last_crystal_idx][idx], cells[idx].my_ants * -1),
+        )[0]
+        actions.append(line(last_crystal_idx, nearest_base, 1))
 
     if len(actions) == 0:
         for i in sorted(init_crystal_list, key=lambda idx: (dist[my_bases[0]][idx])):
