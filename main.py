@@ -3,7 +3,7 @@ import sys
 import heapq
 
 from collections import defaultdict
-import time
+import datetime
 
 
 class UnionFind:
@@ -168,11 +168,15 @@ for i in input().split():
     opp_bases.append(opp_base_index)
 
 # TODO: 初期処理重くてタイムアウトするので、初期処理を減らす
+dt_now = datetime.datetime.now()
+debug(str(dt_now))
+
 for k in range(number_of_cells):
     for i in range(number_of_cells):
-        for j in range(number_of_cells):
+        for j in range(i, number_of_cells):
             dist[i][j] = min(dist[i][j], dist[i][k] + dist[k][j])
-            dist[j][i] = min(dist[i][j], dist[i][k] + dist[k][j])
+            dist[j][i] = dist[i][j]
+
 
 acc = 0
 visit_crystal_list: list[int] = []
@@ -315,21 +319,26 @@ while True:
             len(list(filter(lambda idx: cells[idx].resources > 0, middle_crystal_list)))
             > 0
         ):
+            debug("TARGET CHANGE: middle_crystal", 2)
             target_crystal_list = middle_crystal_list
 
         visit_resource_list: list[int] = list(
             filter(
-                lambda idx: cells[idx].resources > 0,
+                lambda idx: cells[idx].resources > 0
+                and min(map(lambda base: dist[base][idx], my_bases)) * 1.5
+                < my_ants_total,
                 target_crystal_list + visit_egg_list,
             )
         )
+        debug(f"target_crystal_list: {target_crystal_list}", 2)
+        debug(f"visit_resource_list: {visit_resource_list}", 2)
 
         visit_resource_list.sort(key=lambda idx: dist[my_bases[0]][idx])
 
-        # TODO: baseの複数対応
-        connected_to_base = [my_bases[0]]
+        connected_to_base = my_bases[:]
         que = deque()
-        que.append(my_bases[0])
+        for base in my_bases:
+            que.append(base)
         for resource in visit_resource_list:
             que.append(resource)
 
