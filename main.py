@@ -189,6 +189,11 @@ for i in sorted(init_crystal_list, key=lambda idx: (dist[my_bases[0]][idx])):
     if acc > init_crystal_total * 90 // 100:
         break
 
+# Game Phasing Indicator
+# 0: Early Game
+# 1: Mid Game
+# 2: Late Game
+game_phase = 0
 
 # game loop
 while True:
@@ -236,7 +241,14 @@ while True:
     debug(f"progress_indicator: {progress_indicator}")
 
     # if nearest is egg, go to egg
-    if cells[nearest_resource_idx].cell_type == 1 and progress_indicator < 0.3:
+    if (
+        cells[nearest_resource_idx].cell_type == 1
+        and cells[nearest_resource_idx].resources > 0
+        and progress_indicator < 0.3
+        and game_phase == 0
+    ):
+        nearest_resources_amount = 0
+        nearest_resource_path_way_long = 0
         for i in range(len(nearest_resource_list)):
             if (
                 cells[nearest_resource_list[i]].cell_type == 1
@@ -244,29 +256,37 @@ while True:
                 == dist[my_bases[0]][nearest_resource_list[0]]
             ):
                 actions.append(line(my_bases[0], nearest_resource_list[i], 2))
+                nearest_resources_amount += cells[nearest_resource_list[i]].resources
+                nearest_resource_path_way_long += dist[my_bases[0]][
+                    nearest_resource_list[i]
+                ]
                 for neighbor in cells[nearest_resource_list[i]].neighbors:
                     if cells[neighbor].cell_type == 1:
                         actions.append(beacon(neighbor, 1))
+                        nearest_resources_amount += cells[neighbor].resources
+                        nearest_resource_path_way_long += 1
             else:
                 break
-        print(";".join(actions))
-        continue
-
-    # midpoint priority
-    if is_progress_egg_discard:
-        for c in crystal_list:
-            if cells[c].is_middle_point_between_us:
-                actions.append(line(my_bases[0], c, 1))
-                break
-        if len(actions) > 0:
+        # my ants are enough to get all eggs
+        if nearest_resources_amount * nearest_resource_path_way_long > my_ants_total:
             print(";".join(actions))
-            debug("midpoint priority triggered")
             continue
 
+    if game_phase == 0:
+        game_phase = 1
     # main strategy
     uf = UnionFind(number_of_cells)
     visit_resource_list: list[int] = list(
-        filter(lambda idx: cells[idx].resources > 0, visit_crystal_list + egg_list)
+        filter(
+            lambda idx: cells[idx].resources > 0,
+            visit_crystal_list
+            + list(
+                filter(
+                    lambda idx: dist[my_bases[0]][idx] < dist[opp_bases[0]][idx] * 2,
+                    egg_list,
+                )
+            ),
+        )
     )
 
     visit_resource_list.sort(key=lambda idx: dist[my_bases[0]][idx])
@@ -279,6 +299,8 @@ while True:
 
     resource_with_multi_path_list = []
     history_dict = {}
+    for i in range(number_of_cells):
+        history_dict[i] = -1
     while len(que) > 0:
         debug(f"----new loop---")
         debug(f"connected_to_base: {connected_to_base}")
@@ -289,7 +311,7 @@ while True:
             continue
         nearest_path = sorted(
             connected_to_base,
-            key=lambda x: dist[current_pos_idx][x],
+            key=lambda x: (dist[current_pos_idx][x], cells[x].my_ants * -1),
         )[0]
         next_neighbors_list = list(
             filter(
@@ -298,11 +320,14 @@ while True:
                 cells[current_pos_idx].neighbors,
             )
         )
+        next_neighbors_list.sort(key=lambda x: cells[x].my_ants, reverse=True)
+
         debug(f"nearest_path: {nearest_path}")
         debug(f"next_neighbors_list: {next_neighbors_list}")
         if history_dict[current_pos_idx] == len(que):
-            actions.append(line(current_pos_idx, next_neighbors_list[0], 1))
             uf.union(current_pos_idx, next_neighbors_list[0])
+            connected_to_base.append(current_pos_idx)
+            que.appendleft(next_neighbors_list[0])
             continue
         history_dict[current_pos_idx] = len(que)
 
@@ -323,13 +348,13 @@ while True:
         if not uf.same(my_bases[0], current_pos_idx):
             nearest_path = sorted(
                 verified_connection_cells,
-                key=lambda x: dist[current_pos_idx][x],
+                key=lambda x: (dist[current_pos_idx][x], cells[x].my_ants * -1),
             )[0]
             actions.append(line(nearest_path, current_pos_idx, 1))
         verified_connection_cells.append(current_pos_idx)
 
     for cell in connected_to_base:
-        actions.append(beacon(cell, 16))
+        actions.append(beacon(cell, 1))
 
     if len(actions) == 0:
         for i in sorted(init_crystal_list, key=lambda idx: (dist[my_bases[0]][idx])):
