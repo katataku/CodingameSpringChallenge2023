@@ -493,9 +493,9 @@ while True:
         for cell in connected_to_base:
             if cell in my_bases:
                 if any(map(lambda x: x in connected_to_base, cells[cell].neighbors)):
-                    actions.append(beacon(cell, 1))
+                    actions.append(beacon(cell, 4))
             else:
-                actions.append(beacon(cell, 1))
+                actions.append(beacon(cell, 5))
 
     if game_phase == 10:
         print_game_phase()
