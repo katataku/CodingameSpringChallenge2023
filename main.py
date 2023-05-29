@@ -131,6 +131,7 @@ for _ in range(number_of_cells):
 for i in range(number_of_cells):
     dist[i][i] = 0
 
+
 initial_resources_total: int = 0
 init_crystal_list: list[int] = []
 init_egg_list: list[int] = []
@@ -191,25 +192,49 @@ for k in range(number_of_cells):
             dist[j][i] = dist[i][j]
 
 
+def get_nearest_my_base(idx: int):
+    global my_bases
+    global dist
+    return min(map(lambda base: (dist[base][idx], base), my_bases))[1]
+
+
+def get_nearest_opp_base(idx: int):
+    global opp_bases
+    global dist
+    return min(map(lambda base: (dist[base][idx], base), opp_bases))[1]
+
+
 acc = 0
 visit_crystal_list: list[int] = []
 middle_crystal_list: list[int] = []
 my_close_crystal_list: list[int] = []
-for i in sorted(init_crystal_list, key=lambda idx: (dist[my_bases[0]][idx])):
+for i in sorted(
+    init_crystal_list,
+    key=lambda idx: (
+        dist[get_nearest_my_base(idx)][idx],
+        -1 * dist[get_nearest_opp_base(idx)][idx],
+    ),
+):
     index = cells[i].index
-    if abs(dist[my_bases[0]][index] - dist[opp_bases[0]][index]) <= 2:
+    nearest_base = get_nearest_my_base(index)
+    if (
+        -2
+        <= (dist[nearest_base][index] - dist[get_nearest_opp_base(index)][index])
+        <= 1
+    ):
         middle_crystal_list.append(i)
-    if dist[my_bases[0]][index] * 3 < dist[opp_bases[0]][index]:
+    if dist[nearest_base][index] * 4 < dist[get_nearest_opp_base(index)][index]:
         my_close_crystal_list.append(i)
     acc += cells[i].resources
     if init_crystal_total * 0 <= acc * 100 <= init_crystal_total * 60:
         visit_crystal_list.append(i)
 
-
-# TODO: base複数対応
+print_value("init_crystal_list")
+print_value("visit_crystal_list")
 visit_egg_list: list[int] = list(
     filter(
-        lambda idx: dist[my_bases[0]][idx] < dist[opp_bases[0]][idx] * 1.5,
+        lambda idx: dist[get_nearest_my_base(idx)][idx]
+        < dist[get_nearest_opp_base(idx)][idx] * 1.5,
         init_egg_list,
     )
 )
@@ -340,13 +365,13 @@ while True:
         print_game_phase()
         uf = UnionFind(number_of_cells)
         target_crystal_list = visit_crystal_list.copy()
-        if (
-            len(list(filter(lambda idx: cells[idx].resources > 0, middle_crystal_list)))
-            > 0
-        ):
-            debug("TARGET CHANGE: middle_crystal", 2)
-            print_value("middle_crystal_list", 2)
-            target_crystal_list = middle_crystal_list.copy()
+        # if (
+        #     len(list(filter(lambda idx: cells[idx].resources > 0, middle_crystal_list)))
+        #     > 0
+        # ):
+        #     debug("TARGET CHANGE: middle_crystal", 2)
+        #     print_value("middle_crystal_list", 2)
+        #     target_crystal_list = middle_crystal_list.copy()
 
         visit_resource_list: list[int] = list(
             filter(
@@ -356,15 +381,15 @@ while True:
                 target_crystal_list + visit_egg_list,
             )
         )
-        if len(set(visit_resource_list) - set(my_close_crystal_list)) > 0:
-            debug("TARGET CHANGE: close_crystal", 2)
-            visit_resource_list = list(
-                set(visit_resource_list) - set(my_close_crystal_list)
-            )
+        # if len(set(visit_resource_list) - set(my_close_crystal_list)) > 0:
+        #     debug("TARGET CHANGE: discard close_crystal", 2)
+        #     visit_resource_list = list(
+        #         set(visit_resource_list) - set(my_close_crystal_list)
+        #     )
         print_value("target_crystal_list", 2)
         print_value("visit_resource_list", 2)
         rest_budget = my_ants_total
-        visit_resource_list.sort(key=lambda idx: dist[my_bases[0]][idx])
+        visit_resource_list.sort(key=lambda idx: dist[get_nearest_my_base(idx)][idx])
 
         connected_to_base = my_bases.copy()
         que = deque()
@@ -395,7 +420,7 @@ while True:
                 ),
                 key=lambda x: (
                     dist[current_pos_idx][x],
-                    dist[my_bases[0]][x],
+                    dist[get_nearest_my_base(x)][x],
                     cells[x].my_ants * -1,
                 ),
             )[0]
@@ -407,7 +432,7 @@ while True:
                 )
             )
             next_neighbors_list.sort(
-                key=lambda x: (dist[my_bases[0]][x], -1 * cells[x].my_ants),
+                key=lambda x: (dist[get_nearest_my_base(x)][x], -1 * cells[x].my_ants),
                 reverse=False,
             )
             next_cell = next_neighbors_list[0]
@@ -450,9 +475,8 @@ while True:
         print_value("connected_to_base", 2)
 
         # start to union, connect isolated islands to base
-        connected_to_base.sort(key=lambda idx: dist[my_bases[0]][idx])
+        connected_to_base.sort(key=lambda idx: dist[get_nearest_my_base(idx)][idx])
         verified_connection_cells = my_bases.copy()
-        # TODO: baseの複数対応
         for current_pos_idx in connected_to_base:
             if not any(map(lambda x: uf.same(x, current_pos_idx), my_bases)):
                 nearest_path = sorted(
@@ -483,6 +507,7 @@ while True:
         actions.append(line(last_crystal_idx, nearest_base, 1))
 
     if len(actions) == 0:
+        debug("NO ACTION:DIRECT LINE", 1)
         for i in sorted(init_crystal_list, key=lambda idx: (dist[my_bases[0]][idx])):
             if cells[i].resources > 0:
                 actions.append(line(my_bases[0], i, 32))
