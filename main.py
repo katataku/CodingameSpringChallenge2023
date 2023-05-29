@@ -205,8 +205,7 @@ for i in sorted(init_crystal_list, key=lambda idx: (dist[my_bases[0]][idx])):
     if init_crystal_total * 0 <= acc * 100 <= init_crystal_total * 60:
         visit_crystal_list.append(i)
 
-middle_crystal_list.sort(key=lambda x: cells[x].resources * -1)
-middle_crystal_target = -1
+
 # TODO: base複数対応
 visit_egg_list: list[int] = list(
     filter(
@@ -215,6 +214,7 @@ visit_egg_list: list[int] = list(
     )
 )
 
+# TODO:attackモードを追加。残量の多いmiddle crystalに全力投下して奪いに行く
 # Game Phasing Indicator
 game_phase_dict = {
     0: "Early Game",
@@ -222,6 +222,7 @@ game_phase_dict = {
     2: "Late Game",
     10: "only one crystal",
     11: "few resources",
+    12: "attack middle crystal",
 }
 game_phase = 0
 if len(my_bases) > 1:
@@ -341,16 +342,13 @@ while True:
         print_game_phase()
         uf = UnionFind(number_of_cells)
         target_crystal_list = visit_crystal_list.copy()
-        middle_crystal_list = list(
-            filter(lambda idx: cells[idx].resources > 0, middle_crystal_list)
-        )
-        if len(middle_crystal_list) > 0:
-            if not (middle_crystal_target in middle_crystal_list):
-                middle_crystal_list.sort(key=lambda x: cells[x].resources * -1)
+        if (
+            len(list(filter(lambda idx: cells[idx].resources > 0, middle_crystal_list)))
+            > 0
+        ):
             debug("TARGET CHANGE: middle_crystal", 2)
             print_value("middle_crystal_list", 2)
-            target_crystal_list = middle_crystal_list[0:1]
-            middle_crystal_target = middle_crystal_list[0]
+            target_crystal_list = middle_crystal_list.copy()
 
         visit_resource_list: list[int] = list(
             filter(
@@ -456,6 +454,7 @@ while True:
         # start to union, connect isolated islands to base
         connected_to_base.sort(key=lambda idx: dist[my_bases[0]][idx])
         verified_connection_cells = my_bases.copy()
+        # TODO: baseの複数対応
         for current_pos_idx in connected_to_base:
             if not any(map(lambda x: uf.same(x, current_pos_idx), my_bases)):
                 nearest_path = sorted(
@@ -466,6 +465,7 @@ while True:
                 uf.union(nearest_path, current_pos_idx)
             verified_connection_cells.append(current_pos_idx)
 
+        print_value("len(connected_to_base)", 2)
         print_value("connected_to_base", 2)
 
         for cell in connected_to_base:
