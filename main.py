@@ -367,7 +367,7 @@ while True:
             )
         print_value("target_crystal_list", 2)
         print_value("visit_resource_list", 2)
-
+        rest_budget = my_ants_total
         visit_resource_list.sort(key=lambda idx: dist[my_bases[0]][idx])
 
         connected_to_base = my_bases.copy()
@@ -382,6 +382,10 @@ while True:
             debug(f"----new loop---", 1)
             print_value("connected_to_base", 2)
             print_value("que", 2)
+            print_value("my_ants_total", 2)
+            print_value("len(connected_to_base)", 2)
+            rest_budget = my_ants_total - len(connected_to_base)
+            print_value("rest_budget", 2)
             current_pos_idx: int = que.popleft()
 
             if current_pos_idx in connected_to_base:
@@ -414,6 +418,11 @@ while True:
 
             print_value("nearest_path", 2)
             print_value("next_neighbors_list", 2)
+            print_value("dist[current_pos_idx][nearest_path]", 2)
+
+            # ant resource check: ants are not enough to get the resource, discard
+            if rest_budget < dist[current_pos_idx][nearest_path]:
+                continue
 
             # infinite-loop check
             # force to go the first next cell
