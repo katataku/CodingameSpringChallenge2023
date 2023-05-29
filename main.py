@@ -214,7 +214,6 @@ visit_egg_list: list[int] = list(
     )
 )
 
-# TODO:attackモードを追加。残量の多いmiddle crystalに全力投下して奪いに行く
 # Game Phasing Indicator
 game_phase_dict = {
     0: "Early Game",
@@ -222,7 +221,6 @@ game_phase_dict = {
     2: "Late Game",
     10: "only one crystal",
     11: "few resources",
-    12: "attack middle crystal",
 }
 game_phase = 0
 if len(my_bases) > 1:
