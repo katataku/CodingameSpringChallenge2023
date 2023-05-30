@@ -284,6 +284,10 @@ while True:
     crystal_resource_total = 0
     egg_resource_total = 0
     my_ants_total = 0
+    inputs = [int(j) for j in input().split()]
+    my_score: int = inputs[0]
+    opp_score: int = inputs[1]
+
     for i in range(number_of_cells):
         inputs = [int(j) for j in input().split()]
         resources = inputs[0]  # the current amount of eggs/crystals on this cell
