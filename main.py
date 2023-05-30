@@ -1,25 +1,27 @@
+from __future__ import annotations
 from collections import deque
 import sys
-import heapq
 
 from collections import defaultdict
-import datetime
 import time
 
 
+from collections.abc import Callable
+
+
 class UnionFind:
-    def __init__(self, n):
+    def __init__(self, n: int):
         self.n = n
         self.parents = [-1] * n
 
-    def find(self, x):
+    def find(self, x: int):
         if self.parents[x] < 0:
             return x
         else:
             self.parents[x] = self.find(self.parents[x])
             return self.parents[x]
 
-    def union(self, x, y):
+    def union(self, x: int, y: int):
         x = self.find(x)
         y = self.find(y)
 
@@ -32,13 +34,13 @@ class UnionFind:
         self.parents[x] += self.parents[y]
         self.parents[y] = x
 
-    def size(self, x):
+    def size(self, x: int):
         return -self.parents[self.find(x)]
 
-    def same(self, x, y):
+    def same(self, x: int, y: int):
         return self.find(x) == self.find(y)
 
-    def members(self, x):
+    def members(self, x: int):
         root = self.find(x)
         return [i for i in range(self.n) if self.find(i) == root]
 
@@ -48,8 +50,8 @@ class UnionFind:
     def group_count(self):
         return len(self.roots())
 
-    def all_group_members(self):
-        group_members = defaultdict(list)
+    def all_group_members(self) -> defaultdict[int, list[int]]:
+        group_members: defaultdict[int, list[int]] = defaultdict(list)
         for member in range(self.n):
             group_members[self.find(member)].append(member)
         return group_members
@@ -86,7 +88,7 @@ class Cell(object):
         self.dist_from_base = dist_from_base
 
 
-def beacon(cellIdx, strength):
+def beacon(cellIdx: int, strength: int):
     return "BEACON " + str(cellIdx) + " " + str(strength)
 
 
@@ -94,16 +96,16 @@ def line(sourceIdx: int, targetIdx: int, strength: int) -> str:
     return "LINE " + str(sourceIdx) + " " + str(targetIdx) + " " + str(strength)
 
 
-def msg(txt) -> str:
+def msg(txt: str) -> str:
     return "MESSAGE " + txt
 
 
-def debug(txt, indent=0):
+def debug(txt: str, indent: int = 0):
     print("  " * indent, end="", file=sys.stderr, flush=True)
     print(txt, file=sys.stderr, flush=True)
 
 
-def print_value(_str, indent=0):
+def print_value(_str: str, indent: int = 0):
     if type(eval(_str)) is list:
         debug("{}:(len:{}) {}".format(_str, len(eval(_str)), eval(_str)), indent=indent)
     else:
@@ -124,9 +126,9 @@ time_sta = time.perf_counter()
 
 INF = number_of_cells + 1
 # distance matrix
-dist = []
+dist: list[list[int]] = []
 for _ in range(number_of_cells):
-    dist.append([INF for i in range(number_of_cells)])
+    dist.append([INF for _ in range(number_of_cells)])
 
 for i in range(number_of_cells):
     dist[i][i] = 0
@@ -192,16 +194,18 @@ for k in range(number_of_cells):
             dist[j][i] = dist[i][j]
 
 
-def get_nearest_my_base(idx: int):
+def get_nearest_my_base(idx: int) -> int:
     global my_bases
     global dist
-    return min(map(lambda base: (dist[base][idx], base), my_bases))[1]
+    my_lambda: Callable[[int], tuple[int, int]] = lambda base: (dist[base][idx], base)
+    return min(map(my_lambda, my_bases))[1]
 
 
 def get_nearest_opp_base(idx: int):
     global opp_bases
     global dist
-    return min(map(lambda base: (dist[base][idx], base), opp_bases))[1]
+    my_lambda: Callable[[int], tuple[int, int]] = lambda base: (dist[base][idx], base)
+    return min(map(my_lambda, opp_bases))[1]
 
 
 acc = 0
@@ -304,7 +308,7 @@ while True:
         game_phase = 11
 
     # B. Game strategy
-    actions = []
+    actions: list[str] = []
     #  if nearest is egg, go to egg
     if game_phase == 0:
         # TODO: baseの複数対応
@@ -392,13 +396,13 @@ while True:
         visit_resource_list.sort(key=lambda idx: dist[get_nearest_my_base(idx)][idx])
 
         connected_to_base = my_bases.copy()
-        que = deque()
+        que: deque[int] = deque()
         for base in my_bases:
             que.append(base)
         for resource in visit_resource_list:
             que.append(resource)
 
-        history_dict = {}
+        history_dict: dict[int, int] = {}
         while len(que) > 0:
             debug(f"----new loop---", 1)
             print_value("connected_to_base", 2)
