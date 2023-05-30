@@ -235,14 +235,21 @@ for i in sorted(
 
 print_value("init_crystal_list")
 print_value("visit_crystal_list")
-visit_egg_list: list[int] = list(
-    filter(
-        lambda idx: dist[get_nearest_my_base(idx)][idx]
-        < dist[get_nearest_opp_base(idx)][idx] * 1.5,
-        init_egg_list,
+init_egg_list.sort(
+    key=lambda idx: (
+        dist[get_nearest_my_base(idx)][idx],
+        -1 * dist[get_nearest_opp_base(idx)][idx],
     )
 )
+visit_egg_list: list[int] = []
+acc = 0
+for i in init_egg_list:
+    if init_egg_total * 0 <= acc * 100 <= init_egg_total * 50:
+        visit_egg_list.append(i)
+        acc += cells[i].resources
 
+print_value("init_egg_list")
+print_value("visit_egg_list")
 # Game Phasing Indicator
 game_phase_dict = {
     0: "Early Game",
@@ -259,6 +266,10 @@ if len(my_bases) > 1:
 time_end = time.perf_counter()
 # 経過時間（秒）
 debug("init time[ms]:" + str((time_end - time_sta) * 1000))
+
+TINY_ANT_PROPORTION: int = 1
+LOW_ANT_PROPORTION: int = 4
+MIDDLE_ANT_PROPORTION: int = 5
 
 
 # TODO: ループの所要時間を計測して、出力する→最終版では削除する
@@ -320,6 +331,7 @@ while True:
         nearest_resource_idx = nearest_resource_list[0]
         if not (
             cells[nearest_resource_idx].cell_type == 1
+            and dist[nearest_resource_idx][my_bases[0]] == 1
             and cells[nearest_resource_idx].resources > 0
             and progress_indicator < 0.3
         ):
@@ -333,7 +345,9 @@ while True:
                     and dist[my_bases[0]][nearest_resource_list[i]]
                     == dist[my_bases[0]][nearest_resource_list[0]]
                 ):
-                    actions.append(line(my_bases[0], nearest_resource_list[i], 1))
+                    actions.append(
+                        line(my_bases[0], nearest_resource_list[i], TINY_ANT_PROPORTION)
+                    )
                     nearest_resources_amount += cells[
                         nearest_resource_list[i]
                     ].resources
@@ -342,7 +356,7 @@ while True:
                     ]
                     for neighbor in cells[nearest_resource_list[i]].neighbors:
                         if cells[neighbor].cell_type == 1:
-                            actions.append(beacon(neighbor, 1))
+                            actions.append(beacon(neighbor, TINY_ANT_PROPORTION))
                             nearest_resources_amount += cells[neighbor].resources
                             nearest_resource_path_way_long += 1
                 else:
@@ -369,6 +383,7 @@ while True:
         print_game_phase()
         uf = UnionFind(number_of_cells)
         target_crystal_list = visit_crystal_list.copy()
+        print_value("visit_egg_list", 2)
         # if (
         #     len(list(filter(lambda idx: cells[idx].resources > 0, middle_crystal_list)))
         #     > 0
@@ -414,8 +429,16 @@ while True:
             current_pos_idx: int = que.popleft()
 
             if current_pos_idx in connected_to_base:
+                # if neighbor has resoruce, go to neighbor
+                for neighbor in cells[current_pos_idx].neighbors:
+                    if cells[neighbor].resources > 0 and not uf.same(
+                        current_pos_idx, neighbor
+                    ):
+                        que.appendleft(neighbor)
+                        uf.union(current_pos_idx, neighbor)
+                        connected_to_base.append(neighbor)
                 continue
-            nearest_path = sorted(
+            nearest_path: int = sorted(
                 list(
                     filter(
                         lambda x: not uf.same(x, current_pos_idx),
@@ -458,6 +481,9 @@ while True:
                 continue
             history_dict[current_pos_idx] = len(que)
 
+            for neighbor in next_neighbors_list:
+                if cells[neighbor].cell_type != 0:
+                    que.appendleft(current_pos_idx)
             # path defined
             if len(next_neighbors_list) == 1:
                 uf.union(current_pos_idx, next_cell)
@@ -472,8 +498,16 @@ while True:
                     uf.union(current_pos_idx, one_of_next_cell)
                     continue
 
+            # path not defined
+            # one of the next_cells is resource, put it on to the que
+            for one_of_next_cell in next_neighbors_list:
+                if cells[one_of_next_cell].resources > 0:
+                    que.appendleft(one_of_next_cell)
+                    break
+
             # don't handle, push back to que to retry
-            que.append(current_pos_idx)
+            # que.append(current_pos_idx)
+            connected_to_base.append(current_pos_idx)
         debug(f"===loop end===", 1)
         print_value("len(connected_to_base)", 2)
         print_value("connected_to_base", 2)
@@ -487,7 +521,9 @@ while True:
                     verified_connection_cells,
                     key=lambda x: (dist[current_pos_idx][x], cells[x].my_ants * -1),
                 )[0]
-                actions.append(line(nearest_path, current_pos_idx, 1))
+                actions.append(
+                    line(nearest_path, current_pos_idx, MIDDLE_ANT_PROPORTION)
+                )
                 uf.union(nearest_path, current_pos_idx)
             verified_connection_cells.append(current_pos_idx)
 
@@ -497,9 +533,9 @@ while True:
         for cell in connected_to_base:
             if cell in my_bases:
                 if any(map(lambda x: x in connected_to_base, cells[cell].neighbors)):
-                    actions.append(beacon(cell, 4))
+                    actions.append(beacon(cell, LOW_ANT_PROPORTION))
             else:
-                actions.append(beacon(cell, 5))
+                actions.append(beacon(cell, MIDDLE_ANT_PROPORTION))
 
     if game_phase == 10:
         print_game_phase()
@@ -508,13 +544,13 @@ while True:
             my_bases,
             key=lambda idx: (dist[last_crystal_idx][idx], cells[idx].my_ants * -1),
         )[0]
-        actions.append(line(last_crystal_idx, nearest_base, 1))
+        actions.append(line(last_crystal_idx, nearest_base, TINY_ANT_PROPORTION))
 
     if len(actions) == 0:
         debug("NO ACTION:DIRECT LINE", 1)
         for i in sorted(init_crystal_list, key=lambda idx: (dist[my_bases[0]][idx])):
             if cells[i].resources > 0:
-                actions.append(line(my_bases[0], i, 32))
+                actions.append(line(my_bases[0], i, MIDDLE_ANT_PROPORTION))
     print(";".join(actions))
 
     # 時間計測終了
