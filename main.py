@@ -429,7 +429,7 @@ while True:
             current_pos_idx: int = que.popleft()
 
             if current_pos_idx in connected_to_base:
-                # if neighbor has resoruce, go to neighbor
+                # if neighbor has resource, go to neighbor
                 for neighbor in cells[current_pos_idx].neighbors:
                     if cells[neighbor].resources > 0 and not uf.same(
                         current_pos_idx, neighbor
