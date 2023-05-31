@@ -475,7 +475,7 @@ while True:
                         connected_to_base.append(neighbor)
                 continue
 
-            nearest_path: int = sorted(
+            nearest_path_list: list[int] = sorted(
                 list(
                     filter(
                         lambda x: not uf.same(x, current_pos_idx),
@@ -487,7 +487,10 @@ while True:
                     get_nearest_my_base(x)[0],
                     cells[x].my_ants * -1,
                 ),
-            )[0]
+            )
+            if len(nearest_path_list) == 0:
+                continue
+            nearest_path: int = nearest_path_list[0]
             next_neighbors_list = list(
                 filter(
                     lambda x: dist[nearest_path][x] + 1
@@ -519,18 +522,19 @@ while True:
                 continue
             history_dict[current_pos_idx] = len(que)
 
-            # TODO: bug??
-            # que.appendleft(current_pos_idx)じゃなくて
-            # que.appendleft(neighbor)?
+            # if neighbor has resource, go to neighbor
+            # to find path in skip logic, re-append current_pos_idx to que
             for neighbor in next_neighbors_list:
-                if cells[neighbor].cell_type != 0:
+                neighbor_cell: Cell = cells[neighbor]
+                if neighbor_cell.cell_type != 0 and neighbor_cell.resources > 0:
                     que.appendleft(current_pos_idx)
+                    break
 
             # path identified
             if len(next_neighbors_list) == 1:
                 uf.union(current_pos_idx, next_cell)
                 connected_to_base.append(current_pos_idx)
-                que.appendleft(next_cell)
+                que.append(next_cell)
                 continue
 
             # path not defined
