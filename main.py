@@ -88,12 +88,38 @@ class Cell(object):
         self.dist_from_base = dist_from_base
 
 
-def beacon(cellIdx: int, strength: int):
-    return "BEACON " + str(cellIdx) + " " + str(strength)
+class Instructions(object):
+    _actions: list[str]
 
+    def __init__(self):
+        self._actions: list[str] = []
 
-def line(sourceIdx: int, targetIdx: int, strength: int) -> str:
-    return "LINE " + str(sourceIdx) + " " + str(targetIdx) + " " + str(strength)
+    def beacon(self, cellIdx: int, strength: int):
+        return "BEACON " + str(cellIdx) + " " + str(strength)
+
+    def line(self, sourceIdx: int, targetIdx: int, strength: int) -> str:
+        return "LINE " + str(sourceIdx) + " " + str(targetIdx) + " " + str(strength)
+
+    def add_line(self, sourceIdx: int, targetIdx: int, strength: int):
+        self.add(self.line(sourceIdx, targetIdx, strength))
+
+    def add_beacon(self, cellIdx: int, strength: int):
+        self.add(self.beacon(cellIdx, strength))
+
+    def add(self, instruction: str):
+        self._actions.append(instruction)
+
+    def print(self):
+        if len(self._actions) == 0:
+            debug("NO ACTION:DIRECT LINE", 1)
+            for i in sorted(
+                init_crystal_list, key=lambda idx: (dist[my_bases[0]][idx])
+            ):
+                if cells[i].resources > 0:
+                    self._actions.append(
+                        self.line(my_bases[0], i, MIDDLE_ANT_PROPORTION)
+                    )
+        print(";".join(self._actions))
 
 
 def msg(txt: str) -> str:
@@ -327,7 +353,7 @@ while True:
         game_phase = 11
 
     # B. Game strategy
-    actions: list[str] = []
+    inst = Instructions()
     #  if nearest is egg, go to egg
     if game_phase == 0:
         # TODO: baseの複数対応
@@ -353,20 +379,19 @@ while True:
                     and dist[my_bases[0]][nearest_resource]
                     == dist[my_bases[0]][nearest_resource_list[0]]
                 ):
-                    actions.append(
-                        line(
-                            my_bases[0],
-                            nearest_resource,
-                            TINY_ANT_PROPORTION,
-                        )
+                    inst.add_line(
+                        my_bases[0],
+                        nearest_resource,
+                        TINY_ANT_PROPORTION,
                     )
+
                     nearest_resources_amount += cells[nearest_resource].resources
                     nearest_resource_path_way_long += dist[my_bases[0]][
                         nearest_resource
                     ]
                     for neighbor in cells[nearest_resource].neighbors:
                         if cells[neighbor].cell_type == 1:
-                            actions.append(beacon(neighbor, TINY_ANT_PROPORTION))
+                            inst.add_beacon(neighbor, TINY_ANT_PROPORTION)
                             nearest_resources_amount += cells[neighbor].resources
                             nearest_resource_path_way_long += 1
                 else:
@@ -376,7 +401,7 @@ while True:
                 nearest_resources_amount * nearest_resource_path_way_long
                 > my_ants_total
             ):
-                print(";".join(actions))
+                inst.print()
                 continue
             else:
                 debug("TARGET CHANGE: enough to egg", 2)
@@ -538,9 +563,7 @@ while True:
                     verified_connection_cells,
                     key=lambda x: (dist[current_pos_idx][x], cells[x].my_ants * -1),
                 )[0]
-                actions.append(
-                    line(nearest_path, current_pos_idx, MIDDLE_ANT_PROPORTION)
-                )
+                inst.add_line(nearest_path, current_pos_idx, MIDDLE_ANT_PROPORTION)
                 uf.union(nearest_path, current_pos_idx)
             verified_connection_cells.append(current_pos_idx)
 
@@ -550,9 +573,9 @@ while True:
         for cell in connected_to_base:
             if cell in my_bases:
                 if any(map(lambda x: x in connected_to_base, cells[cell].neighbors)):
-                    actions.append(beacon(cell, LOW_ANT_PROPORTION))
+                    inst.add_beacon(cell, LOW_ANT_PROPORTION)
             else:
-                actions.append(beacon(cell, MIDDLE_ANT_PROPORTION))
+                inst.add_beacon(cell, MIDDLE_ANT_PROPORTION)
 
     if game_phase == 10:
         print_game_phase()
@@ -561,14 +584,9 @@ while True:
             my_bases,
             key=lambda idx: (dist[last_crystal_idx][idx], cells[idx].my_ants * -1),
         )[0]
-        actions.append(line(last_crystal_idx, nearest_base, TINY_ANT_PROPORTION))
+        inst.add_line(last_crystal_idx, nearest_base, TINY_ANT_PROPORTION)
 
-    if len(actions) == 0:
-        debug("NO ACTION:DIRECT LINE", 1)
-        for i in sorted(init_crystal_list, key=lambda idx: (dist[my_bases[0]][idx])):
-            if cells[i].resources > 0:
-                actions.append(line(my_bases[0], i, MIDDLE_ANT_PROPORTION))
-    print(";".join(actions))
+    inst.print()
 
     # 時間計測終了
     time_end = time.perf_counter()
