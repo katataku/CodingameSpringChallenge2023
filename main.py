@@ -190,22 +190,30 @@ for i in input().split():
 for k in range(number_of_cells):
     for i in range(number_of_cells):
         for j in range(i, number_of_cells):
-            dist[i][j] = min(dist[i][j], dist[i][k] + dist[k][j])
+            dist[i][j] = min(
+                dist[i][j],
+                dist[i][k] + dist[k][j],
+            )
             dist[j][i] = dist[i][j]
 
 
-def get_nearest_my_base(idx: int) -> int:
+# get_nearest
+# src_idxからtar_listの中で最も近いindexを返す
+# 返り値は(tar_listの中で最も近い距離, tar_listの中で最も近いindex)
+def get_nearest(src_idx: int, tar_list: list[int]) -> tuple[int, int]:
+    global dist
+    my_lambda: Callable[[int], tuple[int, int]] = lambda idx: (dist[src_idx][idx], idx)
+    return min(map(my_lambda, tar_list))
+
+
+def get_nearest_my_base(idx: int) -> tuple[int, int]:
     global my_bases
-    global dist
-    my_lambda: Callable[[int], tuple[int, int]] = lambda base: (dist[base][idx], base)
-    return min(map(my_lambda, my_bases))[1]
+    return get_nearest(idx, my_bases)
 
 
-def get_nearest_opp_base(idx: int):
+def get_nearest_opp_base(idx: int) -> tuple[int, int]:
     global opp_bases
-    global dist
-    my_lambda: Callable[[int], tuple[int, int]] = lambda base: (dist[base][idx], base)
-    return min(map(my_lambda, opp_bases))[1]
+    return get_nearest(idx, opp_bases)
 
 
 acc = 0
@@ -215,19 +223,15 @@ my_close_crystal_list: list[int] = []
 for i in sorted(
     init_crystal_list,
     key=lambda idx: (
-        dist[get_nearest_my_base(idx)][idx],
-        -1 * dist[get_nearest_opp_base(idx)][idx],
+        get_nearest_my_base(idx)[0],
+        -1 * get_nearest_opp_base(idx)[0],
     ),
 ):
     index = cells[i].index
-    nearest_base = get_nearest_my_base(index)
-    if (
-        -2
-        <= (dist[nearest_base][index] - dist[get_nearest_opp_base(index)][index])
-        <= 1
-    ):
+    nearest_base = get_nearest_my_base(index)[1]
+    if -2 <= (dist[nearest_base][index] - get_nearest_opp_base(index)[0]) <= 1:
         middle_crystal_list.append(i)
-    if dist[nearest_base][index] * 4 < dist[get_nearest_opp_base(index)][index]:
+    if dist[nearest_base][index] * 4 < get_nearest_opp_base(index)[0]:
         my_close_crystal_list.append(i)
     acc += cells[i].resources
     if init_crystal_total * 0 <= acc * 100 <= init_crystal_total * 60:
@@ -237,8 +241,8 @@ print_value("init_crystal_list")
 print_value("visit_crystal_list")
 init_egg_list.sort(
     key=lambda idx: (
-        dist[get_nearest_my_base(idx)][idx],
-        -1 * dist[get_nearest_opp_base(idx)][idx],
+        get_nearest_my_base(idx)[0],
+        -1 * get_nearest_opp_base(idx)[0],
     )
 )
 visit_egg_list: list[int] = []
@@ -343,22 +347,24 @@ while True:
         else:
             nearest_resources_amount = 0
             nearest_resource_path_way_long = 0
-            for i in range(len(nearest_resource_list)):
+            for nearest_resource in nearest_resource_list:
                 if (
-                    cells[nearest_resource_list[i]].cell_type == 1
-                    and dist[my_bases[0]][nearest_resource_list[i]]
+                    cells[nearest_resource].cell_type == 1
+                    and dist[my_bases[0]][nearest_resource]
                     == dist[my_bases[0]][nearest_resource_list[0]]
                 ):
                     actions.append(
-                        line(my_bases[0], nearest_resource_list[i], TINY_ANT_PROPORTION)
+                        line(
+                            my_bases[0],
+                            nearest_resource,
+                            TINY_ANT_PROPORTION,
+                        )
                     )
-                    nearest_resources_amount += cells[
-                        nearest_resource_list[i]
-                    ].resources
+                    nearest_resources_amount += cells[nearest_resource].resources
                     nearest_resource_path_way_long += dist[my_bases[0]][
-                        nearest_resource_list[i]
+                        nearest_resource
                     ]
-                    for neighbor in cells[nearest_resource_list[i]].neighbors:
+                    for neighbor in cells[nearest_resource].neighbors:
                         if cells[neighbor].cell_type == 1:
                             actions.append(beacon(neighbor, TINY_ANT_PROPORTION))
                             nearest_resources_amount += cells[neighbor].resources
@@ -412,7 +418,7 @@ while True:
         print_value("target_crystal_list", 2)
         print_value("visit_resource_list", 2)
         rest_budget = my_ants_total
-        visit_resource_list.sort(key=lambda idx: dist[get_nearest_my_base(idx)][idx])
+        visit_resource_list.sort(key=lambda idx: get_nearest_my_base(idx))
 
         connected_to_base = my_bases.copy()
         que: deque[int] = deque()
@@ -432,6 +438,7 @@ while True:
             print_value("rest_budget", 2)
             current_pos_idx: int = que.popleft()
 
+            # if current_pos_idx is already connected to base, skip
             if current_pos_idx in connected_to_base:
                 # if neighbor has resource, go to neighbor
                 for neighbor in cells[current_pos_idx].neighbors:
@@ -442,6 +449,7 @@ while True:
                         uf.union(current_pos_idx, neighbor)
                         connected_to_base.append(neighbor)
                 continue
+
             nearest_path: int = sorted(
                 list(
                     filter(
@@ -451,7 +459,7 @@ while True:
                 ),
                 key=lambda x: (
                     dist[current_pos_idx][x],
-                    dist[get_nearest_my_base(x)][x],
+                    get_nearest_my_base(x)[0],
                     cells[x].my_ants * -1,
                 ),
             )[0]
@@ -463,7 +471,7 @@ while True:
                 )
             )
             next_neighbors_list.sort(
-                key=lambda x: (dist[get_nearest_my_base(x)][x], -1 * cells[x].my_ants),
+                key=lambda x: (get_nearest_my_base(x)[0], -1 * cells[x].my_ants),
                 reverse=False,
             )
             next_cell = next_neighbors_list[0]
@@ -477,6 +485,7 @@ while True:
                 continue
 
             # infinite-loop check
+            # Multi path available
             # force to go the first next cell
             if history_dict.get(current_pos_idx, -1) == len(que):
                 uf.union(current_pos_idx, next_cell)
@@ -485,10 +494,14 @@ while True:
                 continue
             history_dict[current_pos_idx] = len(que)
 
+            # TODO: bug??
+            # que.appendleft(current_pos_idx)じゃなくて
+            # que.appendleft(neighbor)?
             for neighbor in next_neighbors_list:
                 if cells[neighbor].cell_type != 0:
                     que.appendleft(current_pos_idx)
-            # path defined
+
+            # path identified
             if len(next_neighbors_list) == 1:
                 uf.union(current_pos_idx, next_cell)
                 connected_to_base.append(current_pos_idx)
@@ -517,7 +530,7 @@ while True:
         print_value("connected_to_base", 2)
 
         # start to union, connect isolated islands to base
-        connected_to_base.sort(key=lambda idx: dist[get_nearest_my_base(idx)][idx])
+        connected_to_base.sort(key=lambda idx: get_nearest_my_base(idx)[0])
         verified_connection_cells = my_bases.copy()
         for current_pos_idx in connected_to_base:
             if not any(map(lambda x: uf.same(x, current_pos_idx), my_bases)):
