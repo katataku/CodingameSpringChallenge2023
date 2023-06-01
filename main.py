@@ -208,6 +208,7 @@ for i in range(number_of_cells):
         dist[i][next] = 1
 
 initial_resources_total = init_crystal_total + init_egg_total
+VICTORY_THRESHOLD: int = (init_crystal_total) // 2
 number_of_bases: int = int(input())
 my_bases: list[int] = []
 for i in input().split():
@@ -419,7 +420,7 @@ while True:
     # main strategy
     if game_phase == 1:
         print_game_phase()
-
+        # TODO:足りないとわかった時点で候補を増やす
         visit_resource_list: list[int] = list(
             filter(
                 lambda idx: cells[idx].resources > 0
@@ -553,6 +554,8 @@ while True:
                 if cells[one_of_next_cell].resources > 0:
                     que.appendleft(one_of_next_cell)
 
+            # TODO: 要チェック実装が違ってる？
+            # TODO:que.appendにするとタイムアウトする。
             # don't handle, push back to que to retry
             # que.append(current_pos_idx)
             connected_to_base.append(current_pos_idx)
