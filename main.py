@@ -138,6 +138,11 @@ def print_value(_str: str, indent: int = 0):
         debug("{}: {}".format(_str, eval(_str)), indent=indent)
 
 
+def print_values(_strs: list[str], indent: int = 0):
+    for str in _strs:
+        print_value(str, indent=indent)
+
+
 def print_game_phase():
     debug(f"game_phase: {game_phase} ({game_phase_dict[game_phase]})")
 
@@ -416,48 +421,31 @@ while True:
     # main strategy
     if game_phase == 1:
         print_game_phase()
-        uf = UnionFind(number_of_cells)
-        target_crystal_list = visit_crystal_list.copy()
-        print_value("visit_egg_list", 2)
-        # if (
-        #     len(list(filter(lambda idx: cells[idx].resources > 0, middle_crystal_list)))
-        #     > 0
-        # ):
-        #     debug("TARGET CHANGE: middle_crystal", 2)
-        #     print_value("middle_crystal_list", 2)
-        #     target_crystal_list = middle_crystal_list.copy()
 
         visit_resource_list: list[int] = list(
             filter(
                 lambda idx: cells[idx].resources > 0
                 and min(map(lambda base: dist[base][idx], my_bases)) * 1.5
                 < my_ants_total,
-                target_crystal_list + visit_egg_list,
+                visit_crystal_list + visit_egg_list,
             )
         )
-        # if len(set(visit_resource_list) - set(my_close_crystal_list)) > 0:
-        #     debug("TARGET CHANGE: discard close_crystal", 2)
-        #     visit_resource_list = list(
-        #         set(visit_resource_list) - set(my_close_crystal_list)
-        #     )
-        print_value("target_crystal_list", 2)
-        print_value("visit_resource_list", 2)
+        print_values(["visit_crystal_list", "visit_egg_list", "visit_resource_list"], 2)
         rest_budget = my_ants_total
         visit_resource_list.sort(key=lambda idx: get_nearest_my_base(idx))
 
         connected_to_base = my_bases.copy()
         que: deque[int] = deque(my_bases + visit_resource_list)
+        uf = UnionFind(number_of_cells)
 
         history_dict: dict[int, int] = {}
         while len(que) > 0:
             debug(f"----new loop---", 1)
-            print_value("connected_to_base", 2)
-            print_value("que", 2)
-            print_value("my_ants_total", 2)
-            print_value("len(connected_to_base)", 2)
             rest_budget = my_ants_total - len(connected_to_base)
-            print_value("rest_budget", 2)
             current_pos_idx: int = que.popleft()
+            print_values(
+                ["connected_to_base", "que", "my_ants_total", "rest_budget"], 2
+            )
 
             # if current_pos_idx is already connected to base, skip
             if current_pos_idx in connected_to_base:
