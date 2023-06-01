@@ -507,9 +507,14 @@ while True:
             next_hop_candidates = get_next_hop_candidates(current_pos_idx, dest)
             next_hop = next_hop_candidates[0]
 
-            print_value("dest", 2)
-            print_value("next_hop_candidates", 2)
-            print_value("dist[current_pos_idx][dest]", 2)
+            print_values(
+                [
+                    "dest",
+                    "next_hop_candidates",
+                    "dist[current_pos_idx][dest]",
+                ],
+                2,
+            )
 
             # ant resource check: ants are not enough to get the resource, discard
             if rest_budget < dist[current_pos_idx][dest]:
@@ -558,7 +563,6 @@ while True:
             # que.append(current_pos_idx)
             connected_to_base.append(current_pos_idx)
         debug(f"===loop end===", 1)
-        print_value("len(connected_to_base)", 2)
         print_value("connected_to_base", 2)
 
         # start to union, connect isolated islands to base
