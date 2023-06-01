@@ -505,7 +505,6 @@ while True:
                 )
 
             next_hop_candidates = get_next_hop_candidates(current_pos_idx, dest)
-            next_hop = next_hop_candidates[0]
 
             print_values(
                 [
@@ -520,16 +519,6 @@ while True:
             if rest_budget < dist[current_pos_idx][dest]:
                 continue
 
-            # infinite-loop check
-            # Multi path available
-            # force to go the first next cell
-            if history_dict.get(current_pos_idx, -1) == len(que):
-                uf.union(current_pos_idx, next_hop)
-                connected_to_base.append(current_pos_idx)
-                que.appendleft(next_hop)
-                continue
-            history_dict[current_pos_idx] = len(que)
-
             # if neighbor has resource, go to neighbor
             # to find path in skip logic, re-append current_pos_idx to que
             for neighbor in next_hop_candidates:
@@ -539,25 +528,24 @@ while True:
                     break
 
             # path identified
-            if len(next_hop_candidates) == 1:
-                uf.union(current_pos_idx, next_hop)
+            # or infinite-loop
+            if len(next_hop_candidates) == 1 or history_dict.get(
+                current_pos_idx, -1
+            ) == len(que):
+                uf.union(current_pos_idx, next_hop_candidates[0])
                 connected_to_base.append(current_pos_idx)
-                que.append(next_hop)
+                que.appendleft(next_hop_candidates[0])
                 continue
+            history_dict[current_pos_idx] = len(que)
 
             # path not defined
-            # one of the next_cells is already connected to base
+            # - one of the next_cells is already connected to base
+            # - one of the next_cells is resource, put it on to the que
             for one_of_next_cell in next_hop_candidates:
                 if one_of_next_cell in connected_to_base:
                     uf.union(current_pos_idx, one_of_next_cell)
-                    continue
-
-            # path not defined
-            # one of the next_cells is resource, put it on to the que
-            for one_of_next_cell in next_hop_candidates:
                 if cells[one_of_next_cell].resources > 0:
                     que.appendleft(one_of_next_cell)
-                    break
 
             # don't handle, push back to que to retry
             # que.append(current_pos_idx)
@@ -566,6 +554,7 @@ while True:
         print_value("connected_to_base", 2)
 
         # start to union, connect isolated islands to base
+        # (isolated islands made only if path undefined)
         connected_to_base.sort(key=lambda idx: get_nearest_my_base(idx)[0])
         verified_connection_cells = my_bases.copy()
         for current_pos_idx in connected_to_base:
@@ -578,7 +567,6 @@ while True:
                 uf.union(dest, current_pos_idx)
             verified_connection_cells.append(current_pos_idx)
 
-        print_value("len(connected_to_base)", 2)
         print_value("connected_to_base", 2)
 
         for cell in connected_to_base:
