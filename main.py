@@ -268,8 +268,7 @@ for i in sorted(
     if init_crystal_total * 0 <= acc * 100 <= init_crystal_total * 60:
         visit_crystal_list.append(i)
 
-print_value("init_crystal_list")
-print_value("visit_crystal_list")
+print_values(["init_crystal_list", "visit_crystal_list"])
 init_egg_list.sort(
     key=lambda idx: (
         get_nearest_my_base(idx)[0],
@@ -294,8 +293,6 @@ game_phase_dict = {
     11: "few resources",
 }
 game_phase = 0
-if len(my_bases) > 1:
-    game_phase = 1
 
 # 時間計測終了
 time_end = time.perf_counter()
@@ -315,7 +312,6 @@ while True:
     # Input Game State
     egg_list: list[int] = []
     crystal_list: list[int] = []
-    resources_total = 0
     crystal_resource_total = 0
     egg_resource_total = 0
     my_ants_total = 0
@@ -345,9 +341,10 @@ while True:
                 crystal_resource_total += resources
 
     # A. Pre processing
-    resources_total = egg_resource_total + crystal_resource_total
-    progress_indicator = 1 - (resources_total / initial_resources_total)
-    debug(f"progress_indicator: {progress_indicator}")
+    progress_indicator = 1 - (
+        (egg_resource_total + crystal_resource_total) / initial_resources_total
+    )
+    print_values(["progress_indicator"])
 
     # game phase 10: only one crystal
     if len(crystal_list) == 1 and my_ants_total > cells[crystal_list[0]].resources:
@@ -361,16 +358,16 @@ while True:
     inst = Instructions()
     #  if nearest is egg, go to egg
     if game_phase == 0:
-        # TODO: baseの複数対応
         print_game_phase()
         nearest_resource_list = sorted(
             crystal_list + egg_list,
-            key=lambda idx: (dist[my_bases[0]][idx], cells[idx].cell_type),
+            key=lambda idx: (get_nearest_my_base(idx)[0], cells[idx].cell_type),
         )
         nearest_resource_idx = nearest_resource_list[0]
+        nearest_resource_dist = get_nearest_my_base(nearest_resource_idx)[0]
         if not (
             cells[nearest_resource_idx].cell_type == 1
-            and dist[nearest_resource_idx][my_bases[0]] == 1
+            and nearest_resource_dist == 1
             and cells[nearest_resource_idx].resources > 0
             and progress_indicator < 0.3
         ):
@@ -378,23 +375,21 @@ while True:
         else:
             nearest_resources_amount = 0
             nearest_resource_path_way_long = 0
-            for nearest_resource in nearest_resource_list:
+            for target_resource in nearest_resource_list:
+                tar_dist, tar_base = get_nearest_my_base(target_resource)
                 if (
-                    cells[nearest_resource].cell_type == 1
-                    and dist[my_bases[0]][nearest_resource]
-                    == dist[my_bases[0]][nearest_resource_list[0]]
+                    cells[target_resource].cell_type == 1
+                    and tar_dist == nearest_resource_dist
                 ):
                     inst.add_line(
-                        my_bases[0],
-                        nearest_resource,
+                        tar_base,
+                        target_resource,
                         TINY_ANT_PROPORTION,
                     )
 
-                    nearest_resources_amount += cells[nearest_resource].resources
-                    nearest_resource_path_way_long += dist[my_bases[0]][
-                        nearest_resource
-                    ]
-                    for neighbor in cells[nearest_resource].neighbors:
+                    nearest_resources_amount += cells[target_resource].resources
+                    nearest_resource_path_way_long += dist[tar_base][target_resource]
+                    for neighbor in cells[target_resource].neighbors:
                         if cells[neighbor].cell_type == 1:
                             inst.add_beacon(neighbor, TINY_ANT_PROPORTION)
                             nearest_resources_amount += cells[neighbor].resources
@@ -430,6 +425,14 @@ while True:
                 visit_crystal_list + visit_egg_list,
             )
         )
+        debug("if no resource to visit, visit all")
+        if visit_resource_list == []:
+            visit_resource_list = list(
+                filter(
+                    lambda idx: cells[idx].resources > 0,
+                    init_crystal_list,
+                )
+            )
         print_values(["visit_crystal_list", "visit_egg_list", "visit_resource_list"], 2)
         rest_budget = my_ants_total
         visit_resource_list.sort(key=lambda idx: get_nearest_my_base(idx))
@@ -572,18 +575,18 @@ while True:
         for cell in connected_to_base:
             if cell in my_bases:
                 if any(map(lambda x: x in connected_to_base, cells[cell].neighbors)):
-                    inst.add_beacon(cell, LOW_ANT_PROPORTION)
+                    inst.add_beacon(cell, MIDDLE_ANT_PROPORTION)
             else:
                 inst.add_beacon(cell, MIDDLE_ANT_PROPORTION)
 
     if game_phase == 10:
         print_game_phase()
         last_crystal_idx = crystal_list[0]
-        nearest_base = sorted(
-            my_bases,
-            key=lambda idx: (dist[last_crystal_idx][idx], cells[idx].my_ants * -1),
-        )[0]
-        inst.add_line(last_crystal_idx, nearest_base, TINY_ANT_PROPORTION)
+        inst.add_line(
+            last_crystal_idx,
+            get_nearest_my_base(last_crystal_idx)[1],
+            TINY_ANT_PROPORTION,
+        )
 
     inst.print()
 
