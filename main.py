@@ -444,7 +444,14 @@ while True:
             rest_budget = my_ants_total - len(connected_to_base)
             current_pos_idx: int = que.popleft()
             print_values(
-                ["connected_to_base", "que", "my_ants_total", "rest_budget"], 2
+                [
+                    "current_pos_idx",
+                    "connected_to_base",
+                    "que",
+                    "my_ants_total",
+                    "rest_budget",
+                ],
+                2,
             )
 
             # if current_pos_idx is already connected to base, skip
@@ -459,80 +466,90 @@ while True:
                         connected_to_base.append(neighbor)
                 continue
 
-            # TODO: 関数にする
-            nearest_path_list: list[int] = sorted(
-                list(
-                    filter(
-                        lambda x: not uf.same(x, current_pos_idx),
-                        connected_to_base,
-                    )
-                ),
-                key=lambda x: (
-                    dist[current_pos_idx][x],
-                    get_nearest_my_base(x)[0],
-                    cells[x].my_ants * -1,
-                ),
-            )
-            if len(nearest_path_list) == 0:
-                continue
-            nearest_path: int = nearest_path_list[0]
-            # TODO: 関数にする
-            next_neighbors_list = list(
-                filter(
-                    lambda x: dist[nearest_path][x] + 1
-                    == dist[nearest_path][current_pos_idx],
-                    cells[current_pos_idx].neighbors,
+            def get_destination_candidates(current_pos_idx: int) -> list[int]:
+                global connected_to_base
+                global uf
+                global cells
+                return sorted(
+                    list(
+                        filter(
+                            lambda x: not uf.same(x, current_pos_idx),
+                            connected_to_base,
+                        )
+                    ),
+                    key=lambda x: (
+                        dist[current_pos_idx][x],
+                        get_nearest_my_base(x)[0],
+                        cells[x].my_ants * -1,
+                    ),
                 )
-            )
-            next_neighbors_list.sort(
-                key=lambda x: (get_nearest_my_base(x)[0], -1 * cells[x].my_ants),
-                reverse=False,
-            )
-            next_cell = next_neighbors_list[0]
 
-            print_value("nearest_path", 2)
-            print_value("next_neighbors_list", 2)
-            print_value("dist[current_pos_idx][nearest_path]", 2)
+            dest_candidates: list[int] = get_destination_candidates(current_pos_idx)
+            if len(dest_candidates) == 0:
+                continue
+            dest: int = dest_candidates[0]
+
+            # TODO: 関数にする
+            def get_next_hop_candidates(current_pos_idx: int, dest: int) -> list[int]:
+                global dist
+                global cells
+                return sorted(
+                    list(
+                        filter(
+                            lambda x: dist[dest][x] + 1 == dist[dest][current_pos_idx],
+                            cells[current_pos_idx].neighbors,
+                        )
+                    ),
+                    key=lambda x: (get_nearest_my_base(x)[0], -1 * cells[x].my_ants),
+                    reverse=False,
+                )
+
+            next_hop_candidates = get_next_hop_candidates(current_pos_idx, dest)
+            next_hop = next_hop_candidates[0]
+
+            print_value("dest", 2)
+            print_value("next_hop_candidates", 2)
+            print_value("dist[current_pos_idx][dest]", 2)
 
             # ant resource check: ants are not enough to get the resource, discard
-            if rest_budget < dist[current_pos_idx][nearest_path]:
+            if rest_budget < dist[current_pos_idx][dest]:
                 continue
 
             # infinite-loop check
             # Multi path available
             # force to go the first next cell
             if history_dict.get(current_pos_idx, -1) == len(que):
-                uf.union(current_pos_idx, next_cell)
+                uf.union(current_pos_idx, next_hop)
                 connected_to_base.append(current_pos_idx)
-                que.appendleft(next_cell)
+                que.appendleft(next_hop)
                 continue
             history_dict[current_pos_idx] = len(que)
 
             # if neighbor has resource, go to neighbor
             # to find path in skip logic, re-append current_pos_idx to que
-            for neighbor in next_neighbors_list:
+            for neighbor in next_hop_candidates:
                 neighbor_cell: Cell = cells[neighbor]
                 if neighbor_cell.cell_type != 0 and neighbor_cell.resources > 0:
                     que.appendleft(current_pos_idx)
                     break
 
             # path identified
-            if len(next_neighbors_list) == 1:
-                uf.union(current_pos_idx, next_cell)
+            if len(next_hop_candidates) == 1:
+                uf.union(current_pos_idx, next_hop)
                 connected_to_base.append(current_pos_idx)
-                que.append(next_cell)
+                que.append(next_hop)
                 continue
 
             # path not defined
             # one of the next_cells is already connected to base
-            for one_of_next_cell in next_neighbors_list:
+            for one_of_next_cell in next_hop_candidates:
                 if one_of_next_cell in connected_to_base:
                     uf.union(current_pos_idx, one_of_next_cell)
                     continue
 
             # path not defined
             # one of the next_cells is resource, put it on to the que
-            for one_of_next_cell in next_neighbors_list:
+            for one_of_next_cell in next_hop_candidates:
                 if cells[one_of_next_cell].resources > 0:
                     que.appendleft(one_of_next_cell)
                     break
@@ -549,12 +566,12 @@ while True:
         verified_connection_cells = my_bases.copy()
         for current_pos_idx in connected_to_base:
             if not any(map(lambda x: uf.same(x, current_pos_idx), my_bases)):
-                nearest_path = sorted(
+                dest = sorted(
                     verified_connection_cells,
                     key=lambda x: (dist[current_pos_idx][x], cells[x].my_ants * -1),
                 )[0]
-                inst.add_line(nearest_path, current_pos_idx, MIDDLE_ANT_PROPORTION)
-                uf.union(nearest_path, current_pos_idx)
+                inst.add_line(dest, current_pos_idx, MIDDLE_ANT_PROPORTION)
+                uf.union(dest, current_pos_idx)
             verified_connection_cells.append(current_pos_idx)
 
         print_value("len(connected_to_base)", 2)
