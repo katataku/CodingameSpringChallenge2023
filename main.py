@@ -446,11 +446,7 @@ while True:
         visit_resource_list.sort(key=lambda idx: get_nearest_my_base(idx))
 
         connected_to_base = my_bases.copy()
-        que: deque[int] = deque()
-        for base in my_bases:
-            que.append(base)
-        for resource in visit_resource_list:
-            que.append(resource)
+        que: deque[int] = deque(my_bases + visit_resource_list)
 
         history_dict: dict[int, int] = {}
         while len(que) > 0:
@@ -475,6 +471,7 @@ while True:
                         connected_to_base.append(neighbor)
                 continue
 
+            # TODO: 関数にする
             nearest_path_list: list[int] = sorted(
                 list(
                     filter(
@@ -491,6 +488,7 @@ while True:
             if len(nearest_path_list) == 0:
                 continue
             nearest_path: int = nearest_path_list[0]
+            # TODO: 関数にする
             next_neighbors_list = list(
                 filter(
                     lambda x: dist[nearest_path][x] + 1
