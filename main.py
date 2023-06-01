@@ -373,6 +373,7 @@ while True:
         ):
             game_phase = 1
         else:
+            tar_base_list: list[int] = []
             nearest_resources_amount = 0
             nearest_resource_path_way_long = 0
             for target_resource in nearest_resource_list:
@@ -387,6 +388,7 @@ while True:
                         TINY_ANT_PROPORTION,
                     )
 
+                    tar_base_list.append(tar_base)
                     nearest_resources_amount += cells[target_resource].resources
                     nearest_resource_path_way_long += dist[tar_base][target_resource]
                     for neighbor in cells[target_resource].neighbors:
@@ -400,11 +402,12 @@ while True:
             if (
                 nearest_resources_amount * nearest_resource_path_way_long
                 > my_ants_total
+                and len(set(tar_base_list)) == len(my_bases)
             ):
                 inst.print()
                 continue
             else:
-                debug("TARGET CHANGE: enough to egg", 2)
+                debug("TARGET CHANGE: enough to egg or multi base", 2)
                 game_phase = 1
 
     # game phase 11: few resources
