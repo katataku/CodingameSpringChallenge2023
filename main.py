@@ -516,7 +516,11 @@ while True:
                             cells[current_pos_idx].neighbors,
                         )
                     ),
-                    key=lambda x: (get_nearest_my_base(x)[0], -1 * cells[x].my_ants),
+                    key=lambda x: (
+                        get_nearest_my_base(x)[0],
+                        -1 * cells[x].resources,
+                        -1 * cells[x].my_ants,
+                    ),
                     reverse=False,
                 )
 
@@ -533,6 +537,7 @@ while True:
 
             # ant resource check: ants are not enough to get the resource, discard
             if rest_budget < dist[current_pos_idx][dest]:
+                debug("ant resource check: ants are not enough to get the resource", 2)
                 continue
 
             # if neighbor has resource, go to neighbor
@@ -548,6 +553,10 @@ while True:
             if len(next_hop_candidates) == 1 or history_dict.get(
                 current_pos_idx, -1
             ) == len(que):
+                if len(next_hop_candidates) == 1:
+                    debug("path identified", 2)
+                else:
+                    debug("infinite-loop", 2)
                 uf.union(current_pos_idx, next_hop_candidates[0])
                 connected_to_base.append(current_pos_idx)
                 que.appendleft(next_hop_candidates[0])
@@ -567,7 +576,8 @@ while True:
             # TODO: que.appendにするとタイムアウトする。
             # don't handle, push back to que to retry
             # que.append(current_pos_idx)
-            connected_to_base.append(current_pos_idx)
+            if not current_pos_idx in que:
+                que.append(current_pos_idx)
         debug(f"===loop end===", 1)
         print_value("connected_to_base", 2)
 
