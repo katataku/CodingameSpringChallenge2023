@@ -1,12 +1,13 @@
 from __future__ import annotations
 from collections import deque
 import sys
-
 from collections import defaultdict
 import time
-
-
 from collections.abc import Callable
+from functools import reduce
+
+EGG = 1
+CRYSTAL = 2
 
 
 class UnionFind:
@@ -124,7 +125,7 @@ class Instructions(object):
             for i in sorted(
                 init_crystal_list, key=lambda idx: (dist[my_bases[0]][idx])
             ):
-                if cells[i].resources > 0:
+                if has_resource(i):
                     self._actions.append(
                         self.line(my_bases[0], i, MIDDLE_ANT_PROPORTION)
                     )
@@ -137,8 +138,10 @@ def debug(txt: str, indent: int = 0):
 
 
 def print_value(_str: str, indent: int = 0):
-    if type(eval(_str)) is list:
+    if type(eval(_str)) in [list, dict, set, deque]:
         debug("{}:(len:{}) {}".format(_str, len(eval(_str)), eval(_str)), indent=indent)
+    elif type(eval(_str)) is float:
+        debug("{}: {:.2f}".format(_str, eval(_str)), indent=indent)
     else:
         debug("{}: {}".format(_str, eval(_str)), indent=indent)
 
@@ -148,8 +151,8 @@ def print_values(_strs: list[str], indent: int = 0):
         print_value(str, indent=indent)
 
 
-def print_game_phase():
-    debug(f"game_phase: {game_phase} ({game_phase_dict[game_phase]})", 1)
+def print_game_tactic():
+    debug(f"game_tactic: {game_tactic} ({game_tactic_dict[game_tactic]})", 1)
 
 
 # start input
@@ -180,14 +183,14 @@ init_egg_total: int = 0
 for i in range(number_of_cells):
     inputs = [int(j) for j in input().split()]
     cell_type = inputs[0]  # 0 for empty, 1 for eggs, 2 for crystal
-    if cell_type == 2:
+    if cell_type == CRYSTAL:
         init_crystal_list.append(i)
-    if cell_type == 1:
+    if cell_type == EGG:
         init_egg_list.append(i)
     # the initial amount of eggs/crystals on this cell
     initial_resources = inputs[1]
-    init_crystal_total += initial_resources if cell_type == 2 else 0
-    init_egg_total += initial_resources if cell_type == 1 else 0
+    init_crystal_total += initial_resources if cell_type == CRYSTAL else 0
+    init_egg_total += initial_resources if cell_type == EGG else 0
     # the index of the neighbouring cell for each direction
     neigh_0 = inputs[2]
     neigh_1 = inputs[3]
@@ -234,6 +237,9 @@ for k in range(number_of_cells):
             )
             dist[j][i] = dist[i][j]
 
+DISTANCE = 0
+INDEX = 1
+
 
 # get_nearest
 # src_idxからtar_listの中で最も近いindexを返す
@@ -241,7 +247,7 @@ for k in range(number_of_cells):
 def get_nearest(src_idx: int, tar_list: list[int]) -> tuple[int, int]:
     global dist
     my_lambda: Callable[[int], tuple[int, int]] = lambda idx: (dist[src_idx][idx], idx)
-    return min(map(my_lambda, tar_list))
+    return min([my_lambda(tar) for tar in tar_list])
 
 
 def get_nearest_my_base(idx: int) -> tuple[int, int]:
@@ -254,6 +260,26 @@ def get_nearest_opp_base(idx: int) -> tuple[int, int]:
     return get_nearest(idx, opp_bases)
 
 
+def has_resource(idx: int) -> bool:
+    return cells[idx].resources > 0
+
+
+def is_egg(idx: int) -> bool:
+    return cells[idx].cell_type == EGG
+
+
+def is_crystal(idx: int) -> bool:
+    return cells[idx].cell_type == CRYSTAL
+
+
+def is_egg_with_resource(idx: int) -> bool:
+    return is_egg(idx) and has_resource(idx)
+
+
+def is_crystal_with_resource(idx: int) -> bool:
+    return is_crystal(idx) and has_resource(idx)
+
+
 acc = 0
 visit_crystal_list: list[int] = []
 middle_crystal_list: list[int] = []
@@ -262,17 +288,18 @@ my_half_crystal_list: list[int] = []
 for i in sorted(
     init_crystal_list,
     key=lambda idx: (
-        get_nearest_my_base(idx)[0],
-        -1 * get_nearest_opp_base(idx)[0],
+        get_nearest_my_base(idx)[DISTANCE],
+        -1 * get_nearest_opp_base(idx)[DISTANCE],
     ),
 ):
     index = cells[i].index
-    nearest_base = get_nearest_my_base(index)[1]
-    if dist[nearest_base][index] <= dist[get_nearest_opp_base(index)[1]][index]:
+    nearest_base = get_nearest_my_base(index)[INDEX]
+    nearest_opp_base_distance = get_nearest_opp_base(index)[DISTANCE]
+    if dist[nearest_base][index] <= nearest_opp_base_distance:
         my_half_crystal_list.append(i)
-    if -2 <= (dist[nearest_base][index] - get_nearest_opp_base(index)[0]) <= 1:
+    if -2 <= (dist[nearest_base][index] - nearest_opp_base_distance) <= 1:
         middle_crystal_list.append(i)
-    if dist[nearest_base][index] * 3 < get_nearest_opp_base(index)[0]:
+    if dist[nearest_base][index] * 3 < nearest_opp_base_distance:
         my_close_crystal_list.append(i)
     acc += cells[i].resources
     if init_crystal_total * 0 <= acc * 100 <= init_crystal_total * 60:
@@ -283,8 +310,8 @@ visit_crystal_list = middle_crystal_list.copy()
 print_values(["init_crystal_list", "visit_crystal_list"], 1)
 init_egg_list.sort(
     key=lambda idx: (
-        get_nearest_my_base(idx)[0],
-        -1 * get_nearest_opp_base(idx)[0],
+        get_nearest_my_base(idx)[DISTANCE],
+        -1 * get_nearest_opp_base(idx)[DISTANCE],
     )
 )
 visit_egg_list: list[int] = []
@@ -292,22 +319,20 @@ acc = 0
 for i in init_egg_list:
     if (
         init_egg_total * 0 <= acc * 100 <= init_egg_total * 49
-        and get_nearest_opp_base(i)[0] > 1
+        and get_nearest_opp_base(i)[DISTANCE] > 1
     ):
         visit_egg_list.append(i)
         acc += cells[i].resources
 
 print_value("init_egg_list", 1)
 print_value("visit_egg_list", 1)
-# Game Phasing Indicator
-game_phase_dict = {
+game_tactic_dict = {
     0: "Early Game",
     1: "Mid Game",
     2: "Late Game",
     10: "only one crystal",
-    11: "few resources",
 }
-game_phase = 0
+game_tactic = 0
 
 
 # 時間計測終了
@@ -320,22 +345,28 @@ TINY_ANT_PROPORTION: int = 1
 LOW_ANT_PROPORTION: int = 4
 MIDDLE_ANT_PROPORTION: int = 5
 
+progress_indicator = 0
+egg_list: list[int] = []
+crystal_list: list[int] = []
+crystal_resource_total = 0
+egg_resource_total = 0
+my_ants_total = 0
+my_score: int = 0
+opp_score: int = 0
 
-# TODO: ループの所要時間を計測して、出力する→最終版では削除する
-# game loop
-while True:
-    # 時間計測開始
-    time_sta = time.perf_counter()
-    # Input Game State
-    egg_list: list[int] = []
-    crystal_list: list[int] = []
+
+def turn_input():
+    global my_score, opp_score, egg_list, crystal_list, crystal_resource_total, egg_resource_total, my_ants_total
+
+    inputs = [int(j) for j in input().split()]
+    my_score = inputs[0]
+    opp_score = inputs[1]
+
+    egg_list = []
+    crystal_list = []
     crystal_resource_total = 0
     egg_resource_total = 0
     my_ants_total = 0
-    inputs = [int(j) for j in input().split()]
-    my_score: int = inputs[0]
-    opp_score: int = inputs[1]
-
     for i in range(number_of_cells):
         inputs = [int(j) for j in input().split()]
         resources = inputs[0]  # the current amount of eggs/crystals on this cell
@@ -347,134 +378,142 @@ while True:
         cells[i].opp_ants = opp_ants
 
         my_ants_total += my_ants
+        crystal_resource_total += resources if cell_type == CRYSTAL else 0
+        egg_resource_total += resources if cell_type == EGG else 0
 
-        if resources > 0:
-            if cells[i].cell_type == 1:
-                egg_list.append(i)
-                egg_resource_total += resources
+        if is_egg_with_resource(i):
+            egg_list.append(i)
+        if is_crystal_with_resource(i):
+            crystal_list.append(i)
 
-            if cells[i].cell_type == 2:
-                crystal_list.append(i)
-                crystal_resource_total += resources
 
-    # A. Pre processing
+def calc_progress_indicator():
+    global progress_indicator
     progress_indicator = 1 - (
         (egg_resource_total + crystal_resource_total) / initial_resources_total
     )
     print_values(["progress_indicator"], 1)
 
-    # game phase 10: only one crystal
-    if len(crystal_list) == 1 and my_ants_total > cells[crystal_list[0]].resources:
-        game_phase = 10
 
-    # # game phase 11: few resources
-    # if my_ants_total * 2 > crystal_resource_total:
-    #     game_phase = 11
+def update_game_tactic():
+    global game_tactic, nearest_resource_list
+    if game_tactic == 0:
+        if progress_indicator >= 0.3:
+            game_tactic = 1
+        else:
+            nearest_resource_list = sorted(
+                crystal_list + egg_list,
+                key=lambda idx: (
+                    get_nearest_my_base(idx)[DISTANCE],
+                    cells[idx].cell_type,
+                ),
+            )
+            nearest_resource_idx = nearest_resource_list[0]
+            nearest_resource_dist = get_nearest_my_base(nearest_resource_idx)[DISTANCE]
+            if not (
+                is_egg_with_resource(nearest_resource_idx)
+                and nearest_resource_dist == 1
+            ):
+                game_tactic = 1
+    if len(crystal_list) == 1 and my_ants_total > cells[crystal_list[0]].resources:
+        game_tactic = 10
+
+
+# TODO: ループの所要時間を計測して、出力する→最終版では削除する
+# game loop
+while True:
+    # 時間計測開始
+    time_sta = time.perf_counter()
+
+    # Input Game State
+    turn_input()
+    nearest_resource_list: list[int] = []
+
+    # A. Pre processing
+    calc_progress_indicator()
+    update_game_tactic()
 
     # B. Game strategy
     inst = Instructions()
     #  if nearest is egg, go to egg
-    if game_phase == 0:
-        print_game_phase()
-        nearest_resource_list = sorted(
-            crystal_list + egg_list,
-            key=lambda idx: (get_nearest_my_base(idx)[0], cells[idx].cell_type),
-        )
+    if game_tactic == 0:
+        print_game_tactic()
         nearest_resource_idx = nearest_resource_list[0]
-        nearest_resource_dist = get_nearest_my_base(nearest_resource_idx)[0]
-        if not (
-            cells[nearest_resource_idx].cell_type == 1
-            and nearest_resource_dist == 1
-            and cells[nearest_resource_idx].resources > 0
-            and progress_indicator < 0.3
-        ):
-            game_phase = 1
-        else:
-            tar_base_list: list[int] = []
-            nearest_resources_amount = 0
-            nearest_resource_path_way_long = 0
-            for target_resource in nearest_resource_list:
-                tar_dist, tar_base = get_nearest_my_base(target_resource)
-                if (
-                    cells[target_resource].cell_type == 1
-                    and tar_dist == nearest_resource_dist
-                ):
-                    inst.add_line(
-                        tar_base,
-                        target_resource,
-                        TINY_ANT_PROPORTION,
-                    )
+        nearest_resource_dist = get_nearest_my_base(nearest_resource_idx)[DISTANCE]
 
-                    tar_base_list.append(tar_base)
-                    nearest_resources_amount += cells[target_resource].resources
-                    nearest_resource_path_way_long += dist[tar_base][target_resource]
-                    for neighbor in cells[target_resource].neighbors:
-                        if cells[neighbor].cell_type == 1:
-                            inst.add_beacon(neighbor, TINY_ANT_PROPORTION)
-                            nearest_resources_amount += cells[neighbor].resources
-                            nearest_resource_path_way_long += 1
-                else:
-                    break
-            # my ants are enough to get all eggs
-            if nearest_resources_amount * (
-                nearest_resource_path_way_long + 1
-            ) > my_ants_total and len(set(tar_base_list)) == len(my_bases):
-                inst.print()
-                continue
-            else:
-                print_values(
-                    ["nearest_resources_amount", "nearest_resource_path_way_long"], 1
-                )
-                debug("TARGET CHANGE: enough to egg or multi base", 1)
-                game_phase = 1
+        tar_base_set: set[int] = set()
+        nearest_resources_amount = 0
+        nearest_resource_path_way_long = 0
+        for target_resource in nearest_resource_list:
+            if not is_egg(target_resource):
+                break
+            tar_dist, tar_base = get_nearest_my_base(target_resource)
+            if tar_dist != nearest_resource_dist:
+                break
+            inst.add_line(
+                tar_base,
+                target_resource,
+                TINY_ANT_PROPORTION,
+            )
 
-    # game phase 11: few resources
-    if game_phase == 11:
-        print_game_phase()
-        visit_egg_list = []
-        visit_crystal_list = middle_crystal_list + my_half_crystal_list
-        game_phase = 1
+            tar_base_set.add(tar_base)
+            nearest_resources_amount += cells[target_resource].resources
+            nearest_resource_path_way_long += tar_dist
+            for neighbor in [x for x in cells[target_resource].neighbors if is_egg(x)]:
+                inst.add_beacon(neighbor, TINY_ANT_PROPORTION)
+                nearest_resources_amount += cells[neighbor].resources
+                nearest_resource_path_way_long += 1
+        if nearest_resources_amount * (
+            nearest_resource_path_way_long + 1
+        ) > my_ants_total and len(tar_base_set) == len(my_bases):
+            inst.print()
+            continue
+
+        # my ants are enough to get all eggs
+        debug("TARGET CHANGE: enough to egg or multi base", 1)
+        game_tactic = 1
 
     # main strategy
-    if game_phase == 1:
-        print_game_phase()
-        visit_resource_candidate_list: list[int] = list(
-            filter(
-                lambda idx: cells[idx].resources > 0
-                and min(map(lambda base: dist[base][idx], my_bases)) * 1.5
-                < my_ants_total,
-                visit_crystal_list + visit_egg_list,
-            )
-        )
+    if game_tactic == 1:
+        print_game_tactic()
+        visit_crystal_list: list[int] = [
+            x for x in visit_crystal_list if has_resource(x)
+        ]
+        visit_egg_list: list[int] = [x for x in visit_egg_list if has_resource(x)]
+        visit_resource_candidates: list[int] = [
+            x
+            for x in visit_crystal_list + visit_egg_list
+            if get_nearest_my_base(x)[DISTANCE] * 1.5 < my_ants_total
+        ]
+
         debug("if no resource to visit, visit all", 1)
-        if visit_resource_candidate_list == []:
-            visit_resource_candidate_list = list(
-                filter(
-                    lambda idx: cells[idx].resources > 0,
-                    init_crystal_list + visit_egg_list,
-                )
-            )
-            visit_resource_candidate_list.sort(
+        if visit_resource_candidates == []:
+            init_crystal_list: list[int] = [
+                x for x in init_crystal_list if has_resource(x)
+            ]
+            visit_resource_candidates = init_crystal_list + visit_egg_list
+            visit_resource_candidates.sort(
                 key=lambda idx: (
-                    (get_nearest_my_base(idx)[0] - get_nearest_opp_base(idx)[0]),
-                    get_nearest_my_base(idx)[0],
+                    (
+                        get_nearest_my_base(idx)[DISTANCE]
+                        - get_nearest_opp_base(idx)[DISTANCE]
+                    ),
+                    get_nearest_my_base(idx)[DISTANCE],
                 )
             )
 
         visit_resource_list: list[int] = []
         acc = 0
-        for cell in visit_resource_candidate_list:
-            if cells[cell].cell_type == 1:
+        for cell in [x for x in visit_resource_candidates if is_egg(x)]:
+            visit_resource_list.append(cell)
+        for cell in [x for x in visit_resource_candidates if is_crystal(x)]:
+            if acc + my_score < VICTORY_THRESHOLD:
                 visit_resource_list.append(cell)
-            if cells[cell].cell_type == 2:
-                if acc + my_score < VICTORY_THRESHOLD:
-                    visit_resource_list.append(cell)
-                    acc += cells[cell].resources
+                acc += cells[cell].resources
 
-        rest_budget = my_ants_total
         visit_resource_list.sort(
             key=lambda idx: (
-                get_nearest_my_base(idx)[0],
+                get_nearest_my_base(idx)[DISTANCE],
                 cells[idx].cell_type,
                 cells[idx].resources * -1,
             )
@@ -490,15 +529,12 @@ while True:
 
         while len(que) > 0:
             debug(f"----new loop---", 1)
-            rest_budget = my_ants_total - len(connected_to_base)
             current_pos_idx: int = que.popleft()
             print_values(
                 [
                     "current_pos_idx",
                     "connected_to_base",
                     "que",
-                    "my_ants_total",
-                    "rest_budget",
                 ],
                 2,
             )
@@ -508,9 +544,8 @@ while True:
                 # if neighbor has resource, go to neighbor
                 for neighbor in cells[current_pos_idx].neighbors:
                     if (
-                        cells[neighbor].resources > 0
-                        and cells[neighbor].cell_type == 1
-                        and get_nearest_opp_base(neighbor)[0] > 1
+                        is_egg_with_resource(neighbor)
+                        and get_nearest_opp_base(neighbor)[DISTANCE] > 1
                         and not uf.same(current_pos_idx, neighbor)
                     ):
                         que.appendleft(neighbor)
@@ -523,64 +558,57 @@ while True:
                 global uf
                 global cells
                 return sorted(
-                    list(
-                        filter(
-                            lambda x: not uf.same(x, current_pos_idx),
-                            connected_to_base,
-                        )
-                    ),
+                    [x for x in connected_to_base if not uf.same(x, current_pos_idx)],
                     key=lambda x: (
                         dist[current_pos_idx][x],
-                        get_nearest_my_base(x)[0],
+                        get_nearest_my_base(x)[DISTANCE],
                         cells[x].my_ants * -1,
                     ),
                 )
 
             dest_candidates: list[int] = get_destination_candidates(current_pos_idx)
+            print_value(
+                "dest_candidates",
+                2,
+            )
             if len(dest_candidates) == 0:
                 continue
             dest: int = dest_candidates[0]
+            # ant resource check: ants are not enough to get the resource, discard
+            if my_ants_total - len(connected_to_base) < dist[current_pos_idx][dest]:
+                debug("ant resource check: ants are not enough to get the resource", 2)
+                continue
 
-            # TODO: 関数にする
             def get_next_hop_candidates(current_pos_idx: int, dest: int) -> list[int]:
                 global dist
                 global cells
                 return sorted(
-                    list(
-                        filter(
-                            lambda x: dist[dest][x] + 1 == dist[dest][current_pos_idx],
-                            cells[current_pos_idx].neighbors,
-                        )
-                    ),
+                    [
+                        x
+                        for x in cells[current_pos_idx].neighbors
+                        if dist[dest][x] + 1 == dist[dest][current_pos_idx]
+                    ],
                     key=lambda x: (
-                        get_nearest_my_base(x)[0],
+                        get_nearest_my_base(x)[DISTANCE],
                         -1 * cells[x].resources,
                         -1 * cells[x].my_ants,
                     ),
-                    reverse=False,
                 )
 
             next_hop_candidates = get_next_hop_candidates(current_pos_idx, dest)
 
             print_values(
                 [
-                    "dest",
                     "next_hop_candidates",
                     "dist[current_pos_idx][dest]",
                 ],
                 2,
             )
 
-            # ant resource check: ants are not enough to get the resource, discard
-            if rest_budget < dist[current_pos_idx][dest]:
-                debug("ant resource check: ants are not enough to get the resource", 2)
-                continue
-
             # if neighbor has resource, go to neighbor
             # to find path in skip logic, re-append current_pos_idx to que
             for neighbor in next_hop_candidates:
-                neighbor_cell: Cell = cells[neighbor]
-                if neighbor_cell.cell_type == 1 and neighbor_cell.resources > 0:
+                if is_egg_with_resource(neighbor):
                     que.appendleft(current_pos_idx)
                     break
 
@@ -590,9 +618,9 @@ while True:
                 current_pos_idx, -1
             ) == len(que):
                 if len(next_hop_candidates) == 1:
-                    debug("path identified", 2)
+                    debug("path identified", 3)
                 else:
-                    debug("infinite-loop", 2)
+                    debug("infinite-loop", 3)
                 uf.union(current_pos_idx, next_hop_candidates[0])
                 connected_to_base.append(current_pos_idx)
                 que.appendleft(next_hop_candidates[0])
@@ -608,10 +636,7 @@ while True:
                 if cells[one_of_next_cell].resources == 1:
                     que.appendleft(one_of_next_cell)
 
-            # TODO: 要チェック実装が違ってる？
-            # TODO: que.appendにするとタイムアウトする。
             # don't handle, push back to que to retry
-            # que.append(current_pos_idx)
             if not current_pos_idx in que:
                 que.append(current_pos_idx)
         debug(f"---loop end---", 2)
@@ -619,10 +644,10 @@ while True:
 
         # start to union, connect isolated islands to base
         # (isolated islands made only if path undefined)
-        connected_to_base.sort(key=lambda idx: get_nearest_my_base(idx)[0])
+        connected_to_base.sort(key=lambda idx: get_nearest_my_base(idx)[DISTANCE])
         verified_connection_cells = my_bases.copy()
         for current_pos_idx in connected_to_base:
-            if not any(map(lambda x: uf.same(x, current_pos_idx), my_bases)):
+            if all([not uf.same(x, current_pos_idx) for x in my_bases]):
                 dest = sorted(
                     verified_connection_cells,
                     key=lambda x: (dist[current_pos_idx][x], cells[x].my_ants * -1),
@@ -635,13 +660,13 @@ while True:
 
         for cell in connected_to_base:
             if cell in my_bases:
-                if any(map(lambda x: x in connected_to_base, cells[cell].neighbors)):
+                if any([x in connected_to_base for x in cells[cell].neighbors]):
                     inst.add_beacon(cell, MIDDLE_ANT_PROPORTION)
             else:
                 inst.add_beacon(cell, MIDDLE_ANT_PROPORTION)
 
-    if game_phase == 10:
-        print_game_phase()
+    if game_tactic == 10:
+        print_game_tactic()
         acc: int = 0
         for cell in crystal_list:
             inst.add_line(
