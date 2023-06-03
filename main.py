@@ -430,8 +430,6 @@ while True:
     # main strategy
     if game_phase == 1:
         print_game_phase()
-        # TODO:足りないとわかった時点で候補を増やす
-        # TODO:自分の近くのcrystalは最後でOK
         visit_resource_candidate_list: list[int] = list(
             filter(
                 lambda idx: cells[idx].resources > 0
