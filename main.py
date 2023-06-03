@@ -431,7 +431,7 @@ while True:
         print_game_phase()
         # TODO:足りないとわかった時点で候補を増やす
         # TODO:自分の近くのcrystalは最後でOK
-        visit_resource_list: list[int] = list(
+        visit_resource_candidate_list: list[int] = list(
             filter(
                 lambda idx: cells[idx].resources > 0
                 and min(map(lambda base: dist[base][idx], my_bases)) * 1.5
@@ -440,13 +440,28 @@ while True:
             )
         )
         debug("if no resource to visit, visit all")
-        if visit_resource_list == []:
-            visit_resource_list = list(
+        if visit_resource_candidate_list == []:
+            visit_resource_candidate_list = list(
                 filter(
                     lambda idx: cells[idx].resources > 0,
                     init_crystal_list,
                 )
             )
+            visit_resource_candidate_list.sort(
+                key=lambda idx: (
+                    (get_nearest_my_base(idx)[0] - get_nearest_opp_base(idx)[0]),
+                    get_nearest_my_base(idx)[0],
+                )
+            )
+
+        visit_resource_list: list[int] = []
+        acc = 0
+        for cell in visit_resource_candidate_list:
+            visit_resource_list.append(cell)
+            acc += cells[cell].resources
+            if acc + my_score > VICTORY_THRESHOLD:
+                break
+
         print_values(["visit_crystal_list", "visit_egg_list", "visit_resource_list"], 2)
         rest_budget = my_ants_total
         visit_resource_list.sort(key=lambda idx: get_nearest_my_base(idx))
