@@ -285,7 +285,7 @@ visit_egg_list: list[int] = []
 acc = 0
 for i in init_egg_list:
     if (
-        init_egg_total * 0 <= acc * 100 <= init_egg_total * 50
+        init_egg_total * 0 <= acc * 100 <= init_egg_total * 49
         and get_nearest_opp_base(i)[0] > 1
     ):
         visit_egg_list.append(i)
@@ -359,9 +359,9 @@ while True:
     if len(crystal_list) == 1 and my_ants_total > cells[crystal_list[0]].resources:
         game_phase = 10
 
-    # game phase 11: few resources
-    if my_ants_total * 2 > crystal_resource_total:
-        game_phase = 11
+    # # game phase 11: few resources
+    # if my_ants_total * 2 > crystal_resource_total:
+    #     game_phase = 11
 
     # B. Game strategy
     inst = Instructions()
@@ -408,14 +408,15 @@ while True:
                 else:
                     break
             # my ants are enough to get all eggs
-            if (
-                nearest_resources_amount * nearest_resource_path_way_long
-                > my_ants_total
-                and len(set(tar_base_list)) == len(my_bases)
-            ):
+            if nearest_resources_amount * (
+                nearest_resource_path_way_long + 1
+            ) > my_ants_total and len(set(tar_base_list)) == len(my_bases):
                 inst.print()
                 continue
             else:
+                print_values(
+                    ["nearest_resources_amount", "nearest_resource_path_way_long"], 2
+                )
                 debug("TARGET CHANGE: enough to egg or multi base", 2)
                 game_phase = 1
 
@@ -444,7 +445,7 @@ while True:
             visit_resource_candidate_list = list(
                 filter(
                     lambda idx: cells[idx].resources > 0,
-                    init_crystal_list,
+                    init_crystal_list + visit_egg_list,
                 )
             )
             visit_resource_candidate_list.sort(
@@ -457,14 +458,22 @@ while True:
         visit_resource_list: list[int] = []
         acc = 0
         for cell in visit_resource_candidate_list:
-            visit_resource_list.append(cell)
-            acc += cells[cell].resources
-            if acc + my_score > VICTORY_THRESHOLD:
-                break
+            if cells[cell].cell_type == 1:
+                visit_resource_list.append(cell)
+            if cells[cell].cell_type == 2:
+                if acc + my_score < VICTORY_THRESHOLD:
+                    visit_resource_list.append(cell)
+                    acc += cells[cell].resources
 
-        print_values(["visit_crystal_list", "visit_egg_list", "visit_resource_list"], 2)
         rest_budget = my_ants_total
-        visit_resource_list.sort(key=lambda idx: get_nearest_my_base(idx))
+        visit_resource_list.sort(
+            key=lambda idx: (
+                get_nearest_my_base(idx)[0],
+                cells[idx].cell_type,
+                cells[idx].resources * -1,
+            )
+        )
+        print_values(["visit_crystal_list", "visit_egg_list", "visit_resource_list"], 2)
 
         connected_to_base = my_bases.copy()
         que: deque[int] = deque(my_bases + visit_resource_list)
