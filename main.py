@@ -100,11 +100,20 @@ class Instructions(object):
     def line(self, sourceIdx: int, targetIdx: int, strength: int) -> str:
         return "LINE " + str(sourceIdx) + " " + str(targetIdx) + " " + str(strength)
 
+    def msg(self, txt: str) -> str:
+        return "MESSAGE " + txt
+
     def add_line(self, sourceIdx: int, targetIdx: int, strength: int):
         self.add(self.line(sourceIdx, targetIdx, strength))
 
     def add_beacon(self, cellIdx: int, strength: int):
         self.add(self.beacon(cellIdx, strength))
+
+    def add_msg(
+        self,
+        txt: str,
+    ):
+        self.add(self.msg(txt))
 
     def add(self, instruction: str):
         self._actions.append(instruction)
@@ -120,10 +129,6 @@ class Instructions(object):
                         self.line(my_bases[0], i, MIDDLE_ANT_PROPORTION)
                     )
         print(";".join(self._actions))
-
-
-def msg(txt: str) -> str:
-    return "MESSAGE " + txt
 
 
 def debug(txt: str, indent: int = 0):
@@ -144,7 +149,7 @@ def print_values(_strs: list[str], indent: int = 0):
 
 
 def print_game_phase():
-    debug(f"game_phase: {game_phase} ({game_phase_dict[game_phase]})")
+    debug(f"game_phase: {game_phase} ({game_phase_dict[game_phase]})", 1)
 
 
 # start input
@@ -153,6 +158,7 @@ number_of_cells = int(input())  # amount of hexagonal cells in this map
 
 # 時間計測開始
 time_sta = time.perf_counter()
+debug(f"===init start===", 0)
 
 
 INF = number_of_cells + 1
@@ -274,7 +280,7 @@ for i in sorted(
 
 visit_crystal_list = middle_crystal_list.copy()
 
-print_values(["init_crystal_list", "visit_crystal_list"])
+print_values(["init_crystal_list", "visit_crystal_list"], 1)
 init_egg_list.sort(
     key=lambda idx: (
         get_nearest_my_base(idx)[0],
@@ -291,8 +297,8 @@ for i in init_egg_list:
         visit_egg_list.append(i)
         acc += cells[i].resources
 
-print_value("init_egg_list")
-print_value("visit_egg_list")
+print_value("init_egg_list", 1)
+print_value("visit_egg_list", 1)
 # Game Phasing Indicator
 game_phase_dict = {
     0: "Early Game",
@@ -303,10 +309,12 @@ game_phase_dict = {
 }
 game_phase = 0
 
+
 # 時間計測終了
 time_end = time.perf_counter()
 # 経過時間（秒）
-debug("init time[ms]:" + str((time_end - time_sta) * 1000))
+debug("init time[ms]:" + str((time_end - time_sta) * 1000), 1)
+debug(f"===init end===", 0)
 
 TINY_ANT_PROPORTION: int = 1
 LOW_ANT_PROPORTION: int = 4
@@ -353,7 +361,7 @@ while True:
     progress_indicator = 1 - (
         (egg_resource_total + crystal_resource_total) / initial_resources_total
     )
-    print_values(["progress_indicator"])
+    print_values(["progress_indicator"], 1)
 
     # game phase 10: only one crystal
     if len(crystal_list) == 1 and my_ants_total > cells[crystal_list[0]].resources:
@@ -415,9 +423,9 @@ while True:
                 continue
             else:
                 print_values(
-                    ["nearest_resources_amount", "nearest_resource_path_way_long"], 2
+                    ["nearest_resources_amount", "nearest_resource_path_way_long"], 1
                 )
-                debug("TARGET CHANGE: enough to egg or multi base", 2)
+                debug("TARGET CHANGE: enough to egg or multi base", 1)
                 game_phase = 1
 
     # game phase 11: few resources
@@ -438,7 +446,7 @@ while True:
                 visit_crystal_list + visit_egg_list,
             )
         )
-        debug("if no resource to visit, visit all")
+        debug("if no resource to visit, visit all", 1)
         if visit_resource_candidate_list == []:
             visit_resource_candidate_list = list(
                 filter(
@@ -471,13 +479,15 @@ while True:
                 cells[idx].resources * -1,
             )
         )
-        print_values(["visit_crystal_list", "visit_egg_list", "visit_resource_list"], 2)
+        print_values(["visit_crystal_list", "visit_egg_list", "visit_resource_list"], 1)
 
         connected_to_base = my_bases.copy()
         que: deque[int] = deque(my_bases + visit_resource_list)
         uf = UnionFind(number_of_cells)
 
         history_dict: dict[int, int] = {}
+        debug(f"===loop start===", 1)
+
         while len(que) > 0:
             debug(f"----new loop---", 1)
             rest_budget = my_ants_total - len(connected_to_base)
@@ -604,7 +614,7 @@ while True:
             # que.append(current_pos_idx)
             if not current_pos_idx in que:
                 que.append(current_pos_idx)
-        debug(f"===loop end===", 1)
+        debug(f"---loop end---", 2)
         print_value("connected_to_base", 2)
 
         # start to union, connect isolated islands to base
