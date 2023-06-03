@@ -493,19 +493,19 @@ while True:
         ]
 
         if len(visit_resource_candidates) <= 0 or len(visit_crystal_list) <= 2:
-            debug("if no middle resource to visit, visit all", 1)
+            debug("no middle resource to visit, visit all", 1)
             init_crystal_list: list[int] = [
                 x for x in init_crystal_list if has_resource(x)
             ]
-            visit_resource_candidates = init_crystal_list + visit_egg_list
-            visit_resource_candidates.sort(
+            visit_resource_candidates = sorted(
+                init_crystal_list + visit_egg_list,
                 key=lambda idx: (
                     (
                         get_nearest_my_base(idx)[DISTANCE]
                         - get_nearest_opp_base(idx)[DISTANCE]
                     ),
                     get_nearest_my_base(idx)[DISTANCE],
-                )
+                ),
             )
 
         visit_resource_list: list[int] = []
@@ -516,6 +516,7 @@ while True:
             if acc + my_score < VICTORY_THRESHOLD:
                 visit_resource_list.append(cell)
                 acc += cells[cell].resources
+        print_values(["acc + my_score", "VICTORY_THRESHOLD"], 1)
 
         visit_resource_list.sort(
             key=lambda idx: (
