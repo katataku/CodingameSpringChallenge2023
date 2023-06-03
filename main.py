@@ -252,6 +252,7 @@ acc = 0
 visit_crystal_list: list[int] = []
 middle_crystal_list: list[int] = []
 my_close_crystal_list: list[int] = []
+my_half_crystal_list: list[int] = []
 for i in sorted(
     init_crystal_list,
     key=lambda idx: (
@@ -261,9 +262,11 @@ for i in sorted(
 ):
     index = cells[i].index
     nearest_base = get_nearest_my_base(index)[1]
+    if dist[nearest_base][index] <= dist[get_nearest_opp_base(index)[1]][index]:
+        my_half_crystal_list.append(i)
     if -2 <= (dist[nearest_base][index] - get_nearest_opp_base(index)[0]) <= 1:
         middle_crystal_list.append(i)
-    if dist[nearest_base][index] * 2 < get_nearest_opp_base(index)[0]:
+    if dist[nearest_base][index] * 3 < get_nearest_opp_base(index)[0]:
         my_close_crystal_list.append(i)
     acc += cells[i].resources
     if init_crystal_total * 0 <= acc * 100 <= init_crystal_total * 60:
@@ -420,6 +423,7 @@ while True:
     if game_phase == 11:
         print_game_phase()
         visit_egg_list = []
+        visit_crystal_list = middle_crystal_list + my_half_crystal_list
         game_phase = 1
 
     # main strategy
@@ -606,12 +610,17 @@ while True:
 
     if game_phase == 10:
         print_game_phase()
+        acc: int = 0
+        for cell in crystal_list:
+            inst.add_line(
+                cell,
+                get_nearest_my_base(cell)[1],
+                TINY_ANT_PROPORTION,
+            )
+            acc += cells[cell].resources
+            if acc + my_score > VICTORY_THRESHOLD:
+                break
         last_crystal_idx = crystal_list[0]
-        inst.add_line(
-            last_crystal_idx,
-            get_nearest_my_base(last_crystal_idx)[1],
-            TINY_ANT_PROPORTION,
-        )
 
     inst.print()
 
