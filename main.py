@@ -376,6 +376,7 @@ def turn_input():
         cells[i].resources = resources
         cells[i].my_ants = my_ants
         cells[i].opp_ants = opp_ants
+        cell_type = cells[i].cell_type
 
         my_ants_total += my_ants
         crystal_resource_total += resources if cell_type == CRYSTAL else 0
@@ -396,23 +397,26 @@ def calc_progress_indicator():
 
 
 def update_game_tactic():
+    debug("===update_game_tactic===", 0)
     global game_tactic, nearest_resource_list
     if game_tactic == 0:
         if progress_indicator >= 0.3:
+            debug("===__trug__ progress_indicator >= 0.3===", 1)
             game_tactic = 1
         else:
             nearest_resource_list = sorted(
-                crystal_list + egg_list,
+                [x for x in crystal_list + egg_list if has_resource(x)],
                 key=lambda idx: (
                     get_nearest_my_base(idx)[DISTANCE],
                     cells[idx].cell_type,
                 ),
             )
+            print_values(["nearest_resource_list"], 1)
             nearest_resource_idx = nearest_resource_list[0]
             nearest_resource_dist = get_nearest_my_base(nearest_resource_idx)[DISTANCE]
             if not (
                 is_egg_with_resource(nearest_resource_idx)
-                and nearest_resource_dist == 1
+                and nearest_resource_dist <= 2
             ):
                 game_tactic = 1
     if len(crystal_list) == 1 and my_ants_total > cells[crystal_list[0]].resources:
@@ -459,7 +463,9 @@ while True:
             tar_base_set.add(tar_base)
             nearest_resources_amount += cells[target_resource].resources
             nearest_resource_path_way_long += tar_dist
-            for neighbor in [x for x in cells[target_resource].neighbors if is_egg(x)]:
+            for neighbor in [
+                x for x in cells[target_resource].neighbors if is_egg_with_resource(x)
+            ]:
                 inst.add_beacon(neighbor, TINY_ANT_PROPORTION)
                 nearest_resources_amount += cells[neighbor].resources
                 nearest_resource_path_way_long += 1
@@ -486,8 +492,8 @@ while True:
             if get_nearest_my_base(x)[DISTANCE] * 1.5 < my_ants_total
         ]
 
-        debug("if no resource to visit, visit all", 1)
-        if visit_resource_candidates == []:
+        if len(visit_resource_candidates) <= 0 or len(visit_crystal_list) <= 2:
+            debug("if no middle resource to visit, visit all", 1)
             init_crystal_list: list[int] = [
                 x for x in init_crystal_list if has_resource(x)
             ]
@@ -639,6 +645,7 @@ while True:
             # don't handle, push back to que to retry
             if not current_pos_idx in que:
                 que.append(current_pos_idx)
+            connected_to_base.append(current_pos_idx)
         debug(f"---loop end---", 2)
         print_value("connected_to_base", 2)
 
