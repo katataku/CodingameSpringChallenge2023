@@ -263,11 +263,13 @@ for i in sorted(
     nearest_base = get_nearest_my_base(index)[1]
     if -2 <= (dist[nearest_base][index] - get_nearest_opp_base(index)[0]) <= 1:
         middle_crystal_list.append(i)
-    if dist[nearest_base][index] * 4 < get_nearest_opp_base(index)[0]:
+    if dist[nearest_base][index] * 2 < get_nearest_opp_base(index)[0]:
         my_close_crystal_list.append(i)
     acc += cells[i].resources
     if init_crystal_total * 0 <= acc * 100 <= init_crystal_total * 60:
         visit_crystal_list.append(i)
+
+visit_crystal_list = middle_crystal_list.copy()
 
 print_values(["init_crystal_list", "visit_crystal_list"])
 init_egg_list.sort(
@@ -279,7 +281,10 @@ init_egg_list.sort(
 visit_egg_list: list[int] = []
 acc = 0
 for i in init_egg_list:
-    if init_egg_total * 0 <= acc * 100 <= init_egg_total * 50:
+    if (
+        init_egg_total * 0 <= acc * 100 <= init_egg_total * 50
+        and get_nearest_opp_base(i)[0] > 1
+    ):
         visit_egg_list.append(i)
         acc += cells[i].resources
 
@@ -421,6 +426,7 @@ while True:
     if game_phase == 1:
         print_game_phase()
         # TODO:足りないとわかった時点で候補を増やす
+        # TODO:自分の近くのcrystalは最後でOK
         visit_resource_list: list[int] = list(
             filter(
                 lambda idx: cells[idx].resources > 0
@@ -465,8 +471,11 @@ while True:
             if current_pos_idx in connected_to_base:
                 # if neighbor has resource, go to neighbor
                 for neighbor in cells[current_pos_idx].neighbors:
-                    if cells[neighbor].resources > 0 and not uf.same(
-                        current_pos_idx, neighbor
+                    if (
+                        cells[neighbor].resources > 0
+                        and cells[neighbor].cell_type == 1
+                        and get_nearest_opp_base(neighbor)[0] > 1
+                        and not uf.same(current_pos_idx, neighbor)
                     ):
                         que.appendleft(neighbor)
                         uf.union(current_pos_idx, neighbor)
@@ -530,7 +539,7 @@ while True:
             # to find path in skip logic, re-append current_pos_idx to que
             for neighbor in next_hop_candidates:
                 neighbor_cell: Cell = cells[neighbor]
-                if neighbor_cell.cell_type != 0 and neighbor_cell.resources > 0:
+                if neighbor_cell.cell_type == 1 and neighbor_cell.resources > 0:
                     que.appendleft(current_pos_idx)
                     break
 
@@ -547,15 +556,15 @@ while True:
 
             # path not defined
             # - one of the next_cells is already connected to base
-            # - one of the next_cells is resource, put it on to the que
+            # - one of the next_cells is egg, put it on to the que
             for one_of_next_cell in next_hop_candidates:
                 if one_of_next_cell in connected_to_base:
                     uf.union(current_pos_idx, one_of_next_cell)
-                if cells[one_of_next_cell].resources > 0:
+                if cells[one_of_next_cell].resources == 1:
                     que.appendleft(one_of_next_cell)
 
             # TODO: 要チェック実装が違ってる？
-            # TODO:que.appendにするとタイムアウトする。
+            # TODO: que.appendにするとタイムアウトする。
             # don't handle, push back to que to retry
             # que.append(current_pos_idx)
             connected_to_base.append(current_pos_idx)
