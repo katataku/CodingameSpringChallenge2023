@@ -526,7 +526,10 @@ while True:
             )
         )
         print_values(["visit_crystal_list", "visit_egg_list", "visit_resource_list"], 1)
-
+        # TODO:過剰にantを送らないようにする。
+        # idea:connected_to_baseを[int,int]に、[idx,max_resource_num]として最大値を管理。
+        # idea:もしかしたらqueで管理した方がいいかも。
+        # idea:あと、早めにclose_cellに向かう判定もつけるべき？（全ての候補が過剰なケースもありそう）
         connected_to_base = my_bases.copy()
         que: deque[int] = deque(my_bases + visit_resource_list)
         uf = UnionFind(number_of_cells)
